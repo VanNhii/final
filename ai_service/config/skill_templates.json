@@ -1,0 +1,453 @@
+{
+  "default": {
+    "roadmap": [
+      {
+        "action": "Ôn lý thuyết nền tảng về {skill} và ghi chú 10 ý chính.",
+        "topics": ["khái niệm cốt lõi", "use cases"],
+        "keywords": ["{skill} basics", "{skill} overview"]
+      },
+      {
+        "action": "Thực hành {skill} qua bài tập nhỏ/mini project.",
+        "topics": ["thực hành", "phản hồi"],
+        "keywords": ["{skill} practice", "{skill} mini project"]
+      },
+      {
+        "action": "Nâng cấp: áp dụng {skill} vào tình huống thực tế và rút kinh nghiệm.",
+        "topics": ["best practices", "tradeoffs"],
+        "keywords": ["{skill} best practices", "{skill} pitfalls"]
+      }
+    ],
+    "interview": [
+      {
+        "question": "Bạn đã từng dùng {skill} chưa? Hãy mô tả một tình huống bạn áp dụng nó.",
+        "rubric": ["Bối cảnh rõ ràng", "Quyết định có lý do", "Kết quả/ảnh hưởng"]
+      },
+      {
+        "question": "Giải thích khái niệm cốt lõi của {skill} và khi nào nên dùng.",
+        "rubric": ["Đúng khái niệm", "Nêu được use cases", "Hiểu tradeoffs"]
+      }
+    ]
+  },
+  "categories": {
+    "cloud_devops": {
+      "roadmap": [
+        {
+          "action": "Thiết lập pipeline CI/CD cơ bản cho một service nhỏ.",
+          "topics": ["stages", "triggers", "artifacts"],
+          "keywords": ["ci/cd pipeline", "build test deploy"]
+        },
+        {
+          "action": "Triển khai hạ tầng với IaC và cấu hình secrets an toàn.",
+          "topics": ["terraform/ansible", "secrets"],
+          "keywords": ["infrastructure as code", "secrets management"]
+        },
+        {
+          "action": "Thiết lập monitoring + alerting và xử lý sự cố mẫu.",
+          "topics": ["monitoring", "alerting", "logs"],
+          "keywords": ["prometheus grafana", "log analysis"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Mô tả một pipeline CI/CD bạn từng thiết kế. Bước nào dễ lỗi nhất?",
+          "rubric": ["Nêu được stages", "Có quality gates", "Biết rollback/alerts"]
+        },
+        {
+          "question": "Khi service downtime, bạn xử lý theo checklist nào?",
+          "rubric": ["Thu thập log/metrics", "Khoanh vùng nguyên nhân", "Khắc phục/khuyến nghị"]
+        }
+      ]
+    },
+    "frontend_tech": {
+      "roadmap": [
+        {
+          "action": "Xây layout responsive và tái sử dụng component UI.",
+          "topics": ["layout", "component", "a11y"],
+          "keywords": ["responsive", "component design"]
+        },
+        {
+          "action": "Quản lý state + gọi API + xử lý loading/error.",
+          "topics": ["state management", "data fetching"],
+          "keywords": ["state management", "fetch api"]
+        },
+        {
+          "action": "Tối ưu hiệu năng và kiểm thử UI cơ bản.",
+          "topics": ["performance", "testing"],
+          "keywords": ["lighthouse", "component tests"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Bạn tối ưu hiệu năng UI với {skill} như thế nào?",
+          "rubric": ["Xác định bottleneck", "Giải pháp cụ thể", "Đo lường kết quả"]
+        },
+        {
+          "question": "Mô tả cách bạn quản lý state và xử lý lỗi khi gọi API.",
+          "rubric": ["Luồng dữ liệu rõ", "Xử lý loading/error", "Tối ưu trải nghiệm"]
+        }
+      ]
+    },
+    "backend_frameworks": {
+      "roadmap": [
+        {
+          "action": "Thiết kế REST API có auth/validation cho bài toán nhỏ.",
+          "topics": ["auth", "validation", "routing"],
+          "keywords": ["jwt", "api design"]
+        },
+        {
+          "action": "Tối ưu truy vấn DB, thêm caching và pagination.",
+          "topics": ["database", "caching", "pagination"],
+          "keywords": ["index", "redis", "pagination"]
+        },
+        {
+          "action": "Thiết lập logging/metrics và các lớp bảo vệ cơ bản.",
+          "topics": ["logging", "metrics", "rate limit"],
+          "keywords": ["structured logging", "rate limiting"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Thiết kế API cho {job_title}: auth, validation, error handling?",
+          "rubric": ["Luồng auth rõ", "Validation chặt", "Xử lý lỗi hợp lý"]
+        },
+        {
+          "question": "Bạn tối ưu truy vấn và caching thế nào khi traffic tăng?",
+          "rubric": ["Index/Query plan", "Chiến lược cache", "Tradeoffs"]
+        }
+      ]
+    },
+    "qa_testing": {
+      "roadmap": [
+        {
+          "action": "Viết test plan và test case cho luồng chính.",
+          "topics": ["test plan", "acceptance criteria"],
+          "keywords": ["test case", "acceptance"]
+        },
+        {
+          "action": "Tự động hóa smoke/regression suite cơ bản.",
+          "topics": ["automation framework", "assertions"],
+          "keywords": ["selenium", "playwright", "cypress"]
+        },
+        {
+          "action": "Viết bug report chuẩn và phân loại mức độ lỗi.",
+          "topics": ["bug report", "severity"],
+          "keywords": ["bug template", "severity"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Bạn xây dựng test plan cho feature mới như thế nào?",
+          "rubric": ["Phạm vi rõ", "Ưu tiên hợp lý", "Có tiêu chí pass/fail"]
+        },
+        {
+          "question": "Mô tả một case bạn tự động hóa và cách bạn đánh giá hiệu quả.",
+          "rubric": ["Chọn đúng case", "Ổn định", "Giảm effort"]
+        }
+      ]
+    },
+    "ai_data_science": {
+      "roadmap": [
+        {
+          "action": "Chuẩn bị dữ liệu và xây baseline model.",
+          "topics": ["data cleaning", "baseline"],
+          "keywords": ["train/test split", "baseline"]
+        },
+        {
+          "action": "Tuning mô hình và đánh giá bằng metric phù hợp.",
+          "topics": ["hyperparams", "metrics"],
+          "keywords": ["grid search", "f1/roc"]
+        },
+        {
+          "action": "Triển khai inference và theo dõi drift.",
+          "topics": ["serving", "monitoring"],
+          "keywords": ["model serving", "data drift"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Bạn xây baseline và chọn metric đánh giá như thế nào?",
+          "rubric": ["Metric đúng bài toán", "Baseline rõ", "So sánh hợp lý"]
+        },
+        {
+          "question": "Bạn xử lý overfitting/imbalanced data ra sao?",
+          "rubric": ["Phân tích nguyên nhân", "Giải pháp phù hợp", "Đánh giá lại"]
+        }
+      ]
+    },
+    "security_cyber": {
+      "roadmap": [
+        {
+          "action": "Xác định bề mặt tấn công và rủi ro chính.",
+          "topics": ["threat model", "risk"],
+          "keywords": ["OWASP", "threat modeling"]
+        },
+        {
+          "action": "Thực hiện kiểm thử bảo mật/vulnerability scan.",
+          "topics": ["scan", "pentest"],
+          "keywords": ["vulnerability scan", "pentest"]
+        },
+        {
+          "action": "Đề xuất biện pháp khắc phục và hardening.",
+          "topics": ["mitigation", "hardening"],
+          "keywords": ["security hardening", "patching"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Bạn kiểm tra lỗ hổng theo OWASP như thế nào?",
+          "rubric": ["Quy trình rõ", "Ưu tiên rủi ro", "Có khuyến nghị"]
+        },
+        {
+          "question": "Khi phát hiện lỗ hổng nghiêm trọng, bạn xử lý ra sao?",
+          "rubric": ["Báo cáo kịp thời", "Khoanh vùng ảnh hưởng", "Kế hoạch fix"]
+        }
+      ]
+    },
+    "mobile_embedded": {
+      "roadmap": [
+        {
+          "action": "Thiết lập môi trường và chạy demo cơ bản.",
+          "topics": ["setup", "build"],
+          "keywords": ["sdk setup", "hello world"]
+        },
+        {
+          "action": "Kết nối phần cứng/API và xử lý dữ liệu vào/ra.",
+          "topics": ["device I/O", "protocol"],
+          "keywords": ["bluetooth", "mqtt", "sensor"]
+        },
+        {
+          "action": "Debug và tối ưu hiệu năng/tiêu thụ.",
+          "topics": ["profiling", "power"],
+          "keywords": ["profiling", "power optimization"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Mô tả cách bạn debug issue trên thiết bị thật.",
+          "rubric": ["Công cụ rõ", "Khoanh vùng", "Kết luận hợp lý"]
+        },
+        {
+          "question": "Bạn tối ưu pin/hiệu năng cho ứng dụng ra sao?",
+          "rubric": ["Xác định điểm nóng", "Giải pháp", "Đo lường"]
+        }
+      ]
+    },
+    "database_systems": {
+      "roadmap": [
+        {
+          "action": "Thiết kế schema và viết query cơ bản.",
+          "topics": ["schema", "select/join"],
+          "keywords": ["sql basics", "join"]
+        },
+        {
+          "action": "Tối ưu query bằng index và phân tích plan.",
+          "topics": ["index", "query plan"],
+          "keywords": ["explain analyze", "index"]
+        },
+        {
+          "action": "Xây chiến lược backup/replication cho dữ liệu.",
+          "topics": ["backup", "replication"],
+          "keywords": ["backup strategy", "replication"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Khi nào nên tạo index? Hãy phân tích một query chậm.",
+          "rubric": ["Explain plan", "Selectivity", "Tradeoffs"]
+        },
+        {
+          "question": "Chiến lược backup/restore bạn dùng là gì?",
+          "rubric": ["RPO/RTO", "Quy trình rõ", "Kiểm tra định kỳ"]
+        }
+      ]
+    },
+    "architecture_network": {
+      "roadmap": [
+        {
+          "action": "Vẽ kiến trúc high-level và xác định requirements.",
+          "topics": ["requirements", "components"],
+          "keywords": ["system design"]
+        },
+        {
+          "action": "Thiết kế luồng dữ liệu và API contract.",
+          "topics": ["data flow", "api gateway"],
+          "keywords": ["api design", "data flow"]
+        },
+        {
+          "action": "Phân tích khả năng mở rộng và tradeoffs.",
+          "topics": ["scalability", "tradeoffs"],
+          "keywords": ["scaling", "tradeoffs"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Thiết kế high-level hệ thống cho {job_title}.",
+          "rubric": ["Yêu cầu rõ", "Data model", "Scalability"]
+        },
+        {
+          "question": "Tradeoffs giữa synchronous và async khi xử lý tác vụ?",
+          "rubric": ["Hiểu latency", "Độ phức tạp", "Use case phù hợp"]
+        }
+      ]
+    },
+    "soft_skills": {
+      "roadmap": [
+        {
+          "action": "Rèn kỹ năng giao tiếp và báo cáo ngắn gọn.",
+          "topics": ["communication", "reporting"],
+          "keywords": ["status update", "stakeholder"]
+        },
+        {
+          "action": "Luyện teamwork và phản hồi hiệu quả.",
+          "topics": ["teamwork", "feedback"],
+          "keywords": ["collaboration", "feedback"]
+        },
+        {
+          "action": "Quản lý thời gian và ưu tiên công việc.",
+          "topics": ["prioritization", "time management"],
+          "keywords": ["prioritization", "time management"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Hãy kể về một lần bạn xử lý xung đột trong team.",
+          "rubric": ["Bối cảnh rõ", "Giải pháp hợp tác", "Kết quả"]
+        },
+        {
+          "question": "Bạn báo cáo tiến độ khi deadline gấp như thế nào?",
+          "rubric": ["Ưu tiên rõ", "Giao tiếp kịp thời", "Quản lý rủi ro"]
+        }
+      ]
+    },
+    "design": {
+      "roadmap": [
+        {
+          "action": "Nghiên cứu user và xác định problem cần giải quyết.",
+          "topics": ["user research", "persona"],
+          "keywords": ["user research", "persona"]
+        },
+        {
+          "action": "Tạo wireframe/prototype và hệ thống design cơ bản.",
+          "topics": ["wireframe", "design system"],
+          "keywords": ["figma", "prototype"]
+        },
+        {
+          "action": "Thực hiện usability test và iterate thiết kế.",
+          "topics": ["usability", "iteration"],
+          "keywords": ["usability testing", "iteration"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Bạn tiếp cận nghiên cứu người dùng như thế nào?",
+          "rubric": ["Phương pháp rõ", "Insight cụ thể", "Tác động tới design"]
+        },
+        {
+          "question": "Bạn đo lường hiệu quả thiết kế bằng cách nào?",
+          "rubric": ["Chỉ số phù hợp", "Cách đo", "Cải tiến dựa trên dữ liệu"]
+        }
+      ]
+    },
+    "management": {
+      "roadmap": [
+        {
+          "action": "Lập kế hoạch dự án và chia milestone rõ ràng.",
+          "topics": ["scope", "milestones"],
+          "keywords": ["project plan", "wbs"]
+        },
+        {
+          "action": "Quản lý rủi ro và stakeholder theo dõi định kỳ.",
+          "topics": ["risk", "stakeholder"],
+          "keywords": ["risk register", "stakeholder map"]
+        },
+        {
+          "action": "Theo dõi tiến độ và tổng kết retrospective.",
+          "topics": ["tracking", "retrospective"],
+          "keywords": ["status report", "retrospective"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Bạn lập kế hoạch dự án và kiểm soát scope thế nào?",
+          "rubric": ["Scope rõ", "Milestone hợp lý", "Quản trị thay đổi"]
+        },
+        {
+          "question": "Bạn xử lý rủi ro và stakeholder ra sao?",
+          "rubric": ["Ưu tiên rủi ro", "Giao tiếp", "Hành động cụ thể"]
+        }
+      ]
+    },
+    "languages": {
+      "roadmap": [
+        {
+          "action": "Ôn nền tảng ngôn ngữ {skill} và best practices.",
+          "topics": ["syntax", "best practices"],
+          "keywords": ["{skill} basics", "{skill} idioms"]
+        },
+        {
+          "action": "Luyện thuật toán/bài tập với {skill}.",
+          "topics": ["problem solving", "implementation"],
+          "keywords": ["{skill} practice", "algorithms"]
+        },
+        {
+          "action": "Viết module nhỏ và thêm unit tests.",
+          "topics": ["module", "tests"],
+          "keywords": ["unit test", "{skill} module"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Giải thích một đặc điểm của {skill} và tradeoffs của nó.",
+          "rubric": ["Đúng khái niệm", "Tradeoffs rõ", "Ví dụ thực tế"]
+        },
+        {
+          "question": "Bạn tổ chức code {skill} để dễ test/maintain như thế nào?",
+          "rubric": ["Cấu trúc rõ", "Testability", "Maintainability"]
+        }
+      ]
+    },
+    "desktop_app": {
+      "roadmap": [
+        {
+          "action": "Xây UI desktop cơ bản và xử lý event.",
+          "topics": ["ui", "events"],
+          "keywords": ["desktop ui", "event handling"]
+        },
+        {
+          "action": "Áp dụng kiến trúc MVVM/MVC và data binding.",
+          "topics": ["architecture", "binding"],
+          "keywords": ["mvvm", "data binding"]
+        },
+        {
+          "action": "Đóng gói và tối ưu hiệu năng.",
+          "topics": ["packaging", "performance"],
+          "keywords": ["packaging", "performance tuning"]
+        }
+      ],
+      "interview": [
+        {
+          "question": "Bạn thiết kế kiến trúc UI/data cho desktop app ra sao?",
+          "rubric": ["Cấu trúc rõ", "Separation of concerns", "Maintainability"]
+        },
+        {
+          "question": "Bạn xử lý performance hoặc memory leak thế nào?",
+          "rubric": ["Phân tích nguyên nhân", "Công cụ", "Giải pháp"]
+        }
+      ]
+    }
+  },
+  "behavioral": [
+    {
+      "no": 100,
+      "focus": "Behavioral",
+      "question": "Kể về một lần bạn gặp bug khó và bạn xử lý thế nào?",
+      "rubric": ["Situation-Task-Action-Result", "Học được gì", "Giao tiếp"]
+    },
+    {
+      "no": 101,
+      "focus": "Behavioral",
+      "question": "Nếu bị deadline gấp nhưng scope lớn, bạn ưu tiên thế nào?",
+      "rubric": ["Prioritization", "Communication", "Risk management"]
+    }
+  ]
+}

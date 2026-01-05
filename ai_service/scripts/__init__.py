@@ -1,0 +1,2 @@
+from scripts.sync_jobs_rag import sync_jobs
+from scripts.sync_candidates_rag import sync_candidates
