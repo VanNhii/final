@@ -566,7 +566,7 @@ class RAGService:
         if not exp_ok:
             hard_reasons.append("Thiếu kinh nghiệm so với yêu cầu tối thiểu")
         if missing_critical:
-            hard_reasons.append("Thiếu kỹ năng critical")
+            hard_reasons.append("Thiếu kỹ năng bắt buộc")
 
         return {
             "score": round(score, 1),
@@ -787,6 +787,173 @@ class RAGService:
             "questions": questions + behavioral,
             "how_to_use": "Tr? l?i t?ng c?u, t? ch?m theo rubric (0-2 ?i?m m?i ti?u ch?).",
         }
+    def _fallback_templates(self, kind: str) -> List[Dict[str, Any]]:
+        if kind == "interview":
+            return [
+                {
+                    "question": "Bạn đã từng dùng {skill} chưa? Hãy mô tả một tình huống bạn áp dụng nó.",
+                    "rubric": ["Bối cảnh rõ ràng", "Quyết định có lý do", "Kết quả/ảnh hưởng"],
+                },
+                {
+                    "question": "Giải thích khái niệm cốt lõi của {skill} và khi nào nên dùng.",
+                    "rubric": ["Đúng khái niệm", "Nêu được use cases", "Hiểu tradeoffs"],
+                },
+            ]
+        return [
+            {
+                "action": "Ôn lại lý thuyết nền tảng về {skill} và ghi chú 10 ý chính.",
+                "topics": ["khái niệm cốt lõi", "use cases"],
+                "keywords": ["{skill} basics", "{skill} overview"],
+            },
+            {
+                "action": "Thực hành {skill} qua bài tập nhỏ/mini project.",
+                "topics": ["thực hành", "phản hồi"],
+                "keywords": ["{skill} practice", "{skill} mini project"],
+            },
+            {
+                "action": "Nâng cấp: áp dụng {skill} vào tình huống thực tế và rút kinh nghiệm.",
+                "topics": ["best practices", "tradeoffs"],
+                "keywords": ["{skill} best practices", "{skill} pitfalls"],
+            },
+        ]
+
+    def generate_roadmap_14_days(
+        self, *, missing: List[str], missing_critical: List[str], job_title: str = ""
+    ) -> List[Dict[str, Any]]:
+        """Deterministic 14-day plan driven by missing skills (demo-safe, no hallucination)."""
+        skills = [clean_text(s) for s in (missing_critical + missing) if clean_text(s)]
+        seen = set()
+        ordered: List[str] = []
+        for s in skills:
+            k = s.lower()
+            if k not in seen:
+                ordered.append(s)
+                seen.add(k)
+
+        if not ordered:
+            ordered = ["CV tối ưu", "Portfolio", "System design", "Luyện phỏng vấn"]
+
+        def format_task(action: str, topics: List[str], keywords: List[str]) -> str:
+            parts = [action]
+            if topics:
+                parts.append(f"Chủ đề chính: {', '.join(topics)}.")
+            if keywords:
+                parts.append(f"Từ khóa tìm hiểu: {', '.join(keywords)}.")
+            parts.append("Nguồn gợi ý: tài liệu chính thức + tutorial/video uy tín.")
+            return " ".join(parts).strip()
+
+        def pick_template(templates: List[Dict[str, Any]], repeat: int) -> Dict[str, Any]:
+            idx = min(max(repeat - 1, 0), len(templates) - 1)
+            return templates[idx]
+
+        def day_task(skill: str, repeat: int) -> str:
+            category = self.skill_norm.category_for_skill(skill)
+            templates = self._get_skill_templates(category, "roadmap")
+            if not templates:
+                templates = self._fallback_templates("roadmap")
+            t = pick_template(templates, repeat) if templates else {}
+            if not isinstance(t, dict):
+                t = {}
+            action = self._render_template(t.get("action"), skill=skill, category=category)
+            topics = self._render_list(t.get("topics") or [], skill=skill, category=category)
+            keywords = self._render_list(t.get("keywords") or [], skill=skill, category=category)
+            if not action:
+                action = f"Ôn tập {skill} theo lộ trình cơ bản."
+            return format_task(action, topics, keywords)
+
+        plan: List[Dict[str, Any]] = []
+        counts: Dict[str, int] = {}
+        for day in range(1, 15):
+            skill = ordered[(day - 1) % len(ordered)]
+            key = skill.lower()
+            counts[key] = counts.get(key, 0) + 1
+            task = day_task(skill, counts[key])
+            title = clean_text(job_title)
+            prefix = f"(Mục tiêu: {title}) " if title else ""
+            plan.append({"day": day, "focus": skill, "task": prefix + task})
+        return plan
+
+    def build_interview_pack(
+        self, *, job_title: str, matched: List[str], missing: List[str], missing_critical: List[str]
+    ) -> Dict[str, Any]:
+        """Generate a deterministic interview simulation pack (questions + scoring rubric)."""
+        title = clean_text(job_title) or "vị trí đã chọn"
+
+        focus = [clean_text(x) for x in (missing_critical + missing) if clean_text(x)]
+        if not focus:
+            focus = ["System design", "Behavioral", "Project deep dive"]
+
+        def pick_template(templates: List[Dict[str, Any]], repeat: int) -> Dict[str, Any]:
+            idx = min(max(repeat - 1, 0), len(templates) - 1)
+            return templates[idx]
+
+        questions: List[Dict[str, Any]] = []
+        counts: Dict[str, int] = {}
+        for i, sk in enumerate(focus[:6], start=1):
+            category = self.skill_norm.category_for_skill(sk)
+            counts[category] = counts.get(category, 0) + 1
+            templates = self._get_skill_templates(category, "interview")
+            if not templates:
+                templates = self._fallback_templates("interview")
+            t = pick_template(templates, counts[category]) if templates else {}
+            if not isinstance(t, dict):
+                t = {}
+            q = self._render_template(t.get("question"), skill=sk, job_title=title, category=category)
+            rub = self._render_list(t.get("rubric") or [], skill=sk, job_title=title, category=category)
+            if not q:
+                q = f"Bạn đã từng dùng {sk} chưa? Hãy mô tả một tình huống bạn áp dụng nó."
+                rub = ["Bối cảnh rõ ràng", "Quyết định có lý do", "Kết quả/ảnh hưởng"]
+
+            questions.append({"no": i, "focus": sk, "question": q, "rubric": rub})
+
+        behavioral_templates: List[Dict[str, Any]] = []
+        if isinstance(self.skill_templates, dict):
+            raw = self.skill_templates.get("behavioral") or []
+            if isinstance(raw, list):
+                behavioral_templates = raw
+
+        behavioral: List[Dict[str, Any]] = []
+        if behavioral_templates:
+            for idx, item in enumerate(behavioral_templates, start=100):
+                if not isinstance(item, dict):
+                    continue
+                q = self._render_template(item.get("question"), job_title=title)
+                rub = self._render_list(item.get("rubric") or [], job_title=title)
+                if not q:
+                    continue
+                behavioral.append(
+                    {
+                        "no": item.get("no") or idx,
+                        "focus": item.get("focus") or "Behavioral",
+                        "question": q,
+                        "rubric": rub,
+                    }
+                )
+
+        if not behavioral:
+            behavioral = [
+                {
+                    "no": 100,
+                    "focus": "Behavioral",
+                    "question": "Kể về một lần bạn gặp bug khó và bạn xử lý thế nào?",
+                    "rubric": ["Situation-Task-Action-Result", "Học được gì", "Giao tiếp"],
+                },
+                {
+                    "no": 101,
+                    "focus": "Behavioral",
+                    "question": "Nếu bị deadline gấp nhưng scope lớn, bạn ưu tiên thế nào?",
+                    "rubric": ["Prioritization", "Communication", "Risk management"],
+                },
+            ]
+
+        return {
+            "title": title,
+            "focus_skills": focus[:6],
+            "matched_skills": matched[:10],
+            "questions": questions + behavioral,
+            "how_to_use": "Trả lời từng câu, tự chấm theo rubric (0-2 điểm mỗi tiêu chí).",
+        }
+
     def _role_hint_tokens(self, role_hint: str) -> List[str]:
         tokens = []
         for t in norm_basic(role_hint).split():

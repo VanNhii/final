@@ -1,0 +1,2932 @@
+{
+  "info": {
+    "name": "IT Job Portal API",
+    "description": "API Collection for IT Job Portal System - Admin APIs",
+    "version": "1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "authToken",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{authToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"admin\",\n  \"full_name\": \"Admin User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "verify-otp"]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "event": [
+              {
+                "listen": "test",
+                "script": {
+                  "exec": [
+                    "if (pm.response.code === 200) {",
+                    "    const response = pm.response.json();",
+                    "    pm.environment.set('authToken', response.token);",
+                    "    pm.collectionVariables.set('authToken', response.token);",
+                    "}"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "me"]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "forgot-password"]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset_token_here\",\n  \"password\": \"newPassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "reset-password"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Dashboard & Analytics",
+      "item": [
+        {
+          "name": "Get Dashboard Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Get System Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "analytics"]
+            }
+          }
+        },
+        {
+          "name": "Get System Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - User Management",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/users?page=1&limit=10&role=all&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "role",
+                  "value": "all"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update User Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/users/:userId/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "users", ":userId", "status"],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "user_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Export Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/export/users?format=csv",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "export", "users"],
+              "query": [
+                {
+                  "key": "format",
+                  "value": "csv"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Activities",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/activities?page=1&limit=20&userId=&action=",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "activities"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "userId",
+                  "value": ""
+                },
+                {
+                  "key": "action",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Job Management",
+      "item": [
+        {
+          "name": "Get All Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/jobs?page=1&limit=10&status=all&category=",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "jobs"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                },
+                {
+                  "key": "category",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Job Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/jobs/:jobId/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "jobs", ":jobId", "status"],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "job_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Job Categories",
+      "item": [
+        {
+          "name": "Get Job Categories for Admin",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/job-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "job-categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Category Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/job-categories/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "job-categories", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Create Job Category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Software Development\",\n  \"description\": \"Programming and software development jobs\",\n  \"is_active\": true,\n  \"sort_order\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/job-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "job-categories"]
+            }
+          }
+        },
+        {
+          "name": "Update Job Category",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Category Name\",\n  \"description\": \"Updated description\",\n  \"is_active\": true,\n  \"sort_order\": 2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/job-categories/:categoryId",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "job-categories", ":categoryId"],
+              "variable": [
+                {
+                  "key": "categoryId",
+                  "value": "category_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Job Category",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/job-categories/:categoryId",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "job-categories", ":categoryId"],
+              "variable": [
+                {
+                  "key": "categoryId",
+                  "value": "category_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Toggle Category Status",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/job-categories/:categoryId/toggle-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "job-categories", ":categoryId", "toggle-status"],
+              "variable": [
+                {
+                  "key": "categoryId",
+                  "value": "category_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reorder Categories",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"categories\": [\n    {\n      \"id\": \"category_id_1\",\n      \"sort_order\": 1\n    },\n    {\n      \"id\": \"category_id_2\",\n      \"sort_order\": 2\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/job-categories/reorder",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "job-categories", "reorder"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Reports",
+      "item": [
+        {
+          "name": "Get All Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resolve Report",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"Report has been reviewed and resolved\",\n  \"action_taken\": \"User warned\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/:reportId/resolve",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", ":reportId", "resolve"],
+              "variable": [
+                {
+                  "key": "reportId",
+                  "value": "report_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Generate System Report",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/reports/system/:type?startDate=2024-01-01&endDate=2024-12-31",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "reports", "system", ":type"],
+              "query": [
+                {
+                  "key": "startDate",
+                  "value": "2024-01-01"
+                },
+                {
+                  "key": "endDate",
+                  "value": "2024-12-31"
+                }
+              ],
+              "variable": [
+                {
+                  "key": "type",
+                  "value": "users",
+                  "description": "Type: users, jobs, applications, payments"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Payments",
+      "item": [
+        {
+          "name": "Get All Payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/payments?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "payments"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Service Plans",
+      "item": [
+        {
+          "name": "Get Service Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/service-plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "service-plans"]
+            }
+          }
+        },
+        {
+          "name": "Create Service Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_type\": \"premium\",\n  \"name\": \"Premium Plan\",\n  \"description\": \"Advanced features for recruiters\",\n  \"price\": 99.99,\n  \"duration_days\": 30,\n  \"features\": {\n    \"job_postings\": 50,\n    \"candidate_search\": true,\n    \"cv_download\": 100,\n    \"priority_support\": true\n  },\n  \"is_active\": true,\n  \"sort_order\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/service-plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "service-plans"]
+            }
+          }
+        },
+        {
+          "name": "Update Service Plan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Premium Plan\",\n  \"description\": \"Updated description\",\n  \"price\": 89.99,\n  \"features\": {\n    \"job_postings\": 60,\n    \"candidate_search\": true,\n    \"cv_download\": 120,\n    \"priority_support\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/service-plans/:planId",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "service-plans", ":planId"],
+              "variable": [
+                {
+                  "key": "planId",
+                  "value": "plan_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Service Plan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/service-plans/:planId",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "service-plans", ":planId"],
+              "variable": [
+                {
+                  "key": "planId",
+                  "value": "plan_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Toggle Service Plan Status",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/service-plans/:planId/toggle-status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "service-plans", ":planId", "toggle-status"],
+              "variable": [
+                {
+                  "key": "planId",
+                  "value": "plan_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Subscriptions",
+      "item": [
+        {
+          "name": "Get All Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/subscriptions?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "subscriptions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Subscription Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/subscriptions/stats",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "subscriptions", "stats"]
+            }
+          }
+        },
+        {
+          "name": "Update Subscription Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_status\": \"paid\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/subscriptions/:subscriptionId/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "subscriptions", ":subscriptionId", "status"],
+              "variable": [
+                {
+                  "key": "subscriptionId",
+                  "value": "subscription_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Email Management",
+      "item": [
+        {
+          "name": "Get Email Templates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/email-templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "email-templates"]
+            }
+          }
+        },
+        {
+          "name": "Create Email Template",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Welcome Email\",\n  \"subject\": \"Welcome to IT Job Portal\",\n  \"body\": \"<h1>Welcome!</h1><p>Thank you for joining our platform.</p>\",\n  \"type\": \"welcome\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/email-templates",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "email-templates"]
+            }
+          }
+        },
+        {
+          "name": "Update Email Template",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Welcome Email\",\n  \"subject\": \"Updated: Welcome to IT Job Portal\",\n  \"body\": \"<h1>Welcome!</h1><p>Updated welcome message.</p>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/email-templates/:templateId",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "email-templates", ":templateId"],
+              "variable": [
+                {
+                  "key": "templateId",
+                  "value": "template_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Email Template",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/email-templates/:templateId",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "email-templates", ":templateId"],
+              "variable": [
+                {
+                  "key": "templateId",
+                  "value": "template_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Bulk Emails",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"template_id\": \"template_id_here\",\n  \"recipients\": [\n    \"user1@example.com\",\n    \"user2@example.com\"\n  ],\n  \"subject\": \"Important Announcement\",\n  \"variables\": {\n    \"user_name\": \"{{user_name}}\",\n    \"announcement\": \"System maintenance scheduled\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/emails/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "emails", "bulk"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - Notifications",
+      "item": [
+        {
+          "name": "Broadcast Notification",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"System Announcement\",\n  \"message\": \"System maintenance will be performed tonight from 2 AM to 4 AM.\",\n  \"type\": \"system\",\n  \"target_roles\": [\"candidate\", \"recruiter\"],\n  \"priority\": \"high\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/notifications/broadcast",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "notifications", "broadcast"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin - System Maintenance",
+      "item": [
+        {
+          "name": "System Cleanup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cleanup_type\": \"logs\",\n  \"days_old\": 30\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/maintenance/cleanup",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "maintenance", "cleanup"]
+            }
+          }
+        },
+        {
+          "name": "System Backup",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"backup_type\": \"full\",\n  \"include_files\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/admin/maintenance/backup",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "maintenance", "backup"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Profile Management",
+      "item": [
+        {
+          "name": "Get Recruiter Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Recruiter Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"Tech Solutions Inc\",\n  \"company_description\": \"Leading technology company\",\n  \"company_website\": \"https://techsolutions.com\",\n  \"company_size\": \"100-500\",\n  \"industry\": \"Technology\",\n  \"location\": \"Ho Chi Minh City\",\n  \"contact_person\": \"John Doe\",\n  \"phone\": \"+84-123-456-789\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Get Recruiter Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "dashboard"]
+            }
+          }
+        },
+        {
+          "name": "Get Recruiter Analytics",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/analytics",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "analytics"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Job Management",
+      "item": [
+        {
+          "name": "Get Recruiter Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/jobs?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "jobs"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Job Posting",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Senior Full Stack Developer\",\n  \"description\": \"We are looking for an experienced full stack developer...\",\n  \"requirements\": \"- 5+ years of experience\\n- React, Node.js expertise\\n- Database knowledge\",\n  \"location\": \"Ho Chi Minh City\",\n  \"job_type\": \"full-time\",\n  \"experience_level\": \"senior\",\n  \"salary_min\": 2000,\n  \"salary_max\": 3000,\n  \"salary_currency\": \"USD\",\n  \"category_id\": \"category_id_here\",\n  \"skills_required\": [\"React\", \"Node.js\", \"MongoDB\", \"JavaScript\"],\n  \"benefits\": [\"Health insurance\", \"13th month salary\", \"Flexible working hours\"],\n  \"application_deadline\": \"2024-12-31\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/jobs",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs"]
+            }
+          }
+        },
+        {
+          "name": "Update Job",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Updated Senior Full Stack Developer\",\n  \"description\": \"Updated job description...\",\n  \"salary_min\": 2200,\n  \"salary_max\": 3200\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/jobs/:jobId",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", ":jobId"],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "job_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/:jobId",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", ":jobId"],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "job_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Application Management",
+      "item": [
+        {
+          "name": "Get Recruiter Applications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/applications?page=1&limit=10&status=all&jobId=",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "applications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                },
+                {
+                  "key": "jobId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Application Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/applications/:applicationId",
+              "host": ["{{baseUrl}}"],
+              "path": ["applications", ":applicationId"],
+              "variable": [
+                {
+                  "key": "applicationId",
+                  "value": "application_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Application Status",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"shortlisted\",\n  \"notes\": \"Candidate looks promising, schedule for interview\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/applications/:applicationId/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["applications", ":applicationId", "status"],
+              "variable": [
+                {
+                  "key": "applicationId",
+                  "value": "application_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Interview Management",
+      "item": [
+        {
+          "name": "Get Recruiter Interviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/interviews?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "interviews"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Schedule Interview",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"application_id_here\",\n  \"interview_type\": \"technical\",\n  \"scheduled_date\": \"2024-12-15T10:00:00Z\",\n  \"duration_minutes\": 60,\n  \"location\": \"Meeting Room A\",\n  \"meeting_link\": \"https://meet.google.com/abc-def-ghi\",\n  \"interviewer_notes\": \"Technical interview focusing on React and Node.js\",\n  \"instructions\": \"Please prepare your laptop and be ready to code\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/interviews",
+              "host": ["{{baseUrl}}"],
+              "path": ["interviews"]
+            }
+          }
+        },
+        {
+          "name": "Update Interview",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scheduled_date\": \"2024-12-16T14:00:00Z\",\n  \"location\": \"Meeting Room B\",\n  \"interviewer_notes\": \"Updated notes\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/interviews/:interviewId",
+              "host": ["{{baseUrl}}"],
+              "path": ["interviews", ":interviewId"],
+              "variable": [
+                {
+                  "key": "interviewId",
+                  "value": "interview_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Interview Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/interviews/:interviewId",
+              "host": ["{{baseUrl}}"],
+              "path": ["interviews", ":interviewId"],
+              "variable": [
+                {
+                  "key": "interviewId",
+                  "value": "interview_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Interview",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/interviews/:interviewId",
+              "host": ["{{baseUrl}}"],
+              "path": ["interviews", ":interviewId"],
+              "variable": [
+                {
+                  "key": "interviewId",
+                  "value": "interview_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Interview Feedback",
+      "item": [
+        {
+          "name": "Create Interview Feedback",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"interview_id\": \"interview_id_here\",\n  \"overall_rating\": 8,\n  \"technical_skills\": 9,\n  \"communication_skills\": 7,\n  \"problem_solving\": 8,\n  \"cultural_fit\": 8,\n  \"strengths\": \"Strong technical background, good problem-solving approach\",\n  \"weaknesses\": \"Could improve communication skills\",\n  \"feedback\": \"Candidate showed excellent technical knowledge but needs to work on explaining complex concepts clearly.\",\n  \"recommendation\": \"hire\",\n  \"next_steps\": \"Schedule final interview with team lead\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/interview-feedbacks",
+              "host": ["{{baseUrl}}"],
+              "path": ["interview-feedbacks"]
+            }
+          }
+        },
+        {
+          "name": "Get Interview Feedbacks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/interview-feedbacks?page=1&limit=10&interviewId=",
+              "host": ["{{baseUrl}}"],
+              "path": ["interview-feedbacks"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "interviewId",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Interview Feedback",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"overall_rating\": 9,\n  \"feedback\": \"Updated feedback after second review\",\n  \"recommendation\": \"strong_hire\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/interview-feedbacks/:feedbackId",
+              "host": ["{{baseUrl}}"],
+              "path": ["interview-feedbacks", ":feedbackId"],
+              "variable": [
+                {
+                  "key": "feedbackId",
+                  "value": "feedback_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Interview Feedback Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/interview-feedbacks/:feedbackId",
+              "host": ["{{baseUrl}}"],
+              "path": ["interview-feedbacks", ":feedbackId"],
+              "variable": [
+                {
+                  "key": "feedbackId",
+                  "value": "feedback_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Candidate Search (Premium)",
+      "item": [
+        {
+          "name": "Search Candidates",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/candidates/search?page=1&limit=10&skills=React,Node.js&experience_min=2&experience_max=5&location=Ho Chi Minh City",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "candidates", "search"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "skills",
+                  "value": "React,Node.js"
+                },
+                {
+                  "key": "experience_min",
+                  "value": "2"
+                },
+                {
+                  "key": "experience_max",
+                  "value": "5"
+                },
+                {
+                  "key": "location",
+                  "value": "Ho Chi Minh City"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Candidate Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/candidates/:candidateId",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "candidates", ":candidateId"],
+              "variable": [
+                {
+                  "key": "candidateId",
+                  "value": "candidate_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Download Candidate CV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/candidates/:candidateId/cv",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "candidates", ":candidateId", "cv"],
+              "variable": [
+                {
+                  "key": "candidateId",
+                  "value": "candidate_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Subscription Management",
+      "item": [
+        {
+          "name": "Get Recruiter Subscriptions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/subscriptions",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "subscriptions"]
+            }
+          }
+        },
+        {
+          "name": "Get Current Subscription",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/subscriptions/current",
+              "host": ["{{baseUrl}}"],
+              "path": ["subscriptions", "current"]
+            }
+          }
+        },
+        {
+          "name": "Subscribe to Service Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": \"plan_id_here\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/subscriptions",
+              "host": ["{{baseUrl}}"],
+              "path": ["subscriptions"]
+            }
+          }
+        },
+        {
+          "name": "Update Subscription Payment",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payment_status\": \"paid\",\n  \"transaction_id\": \"txn_123456789\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/subscriptions/:subscriptionId/payment",
+              "host": ["{{baseUrl}}"],
+              "path": ["subscriptions", ":subscriptionId", "payment"],
+              "variable": [
+                {
+                  "key": "subscriptionId",
+                  "value": "subscription_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Recruiter - Notifications & Messages",
+      "item": [
+        {
+          "name": "Get Recruiter Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/recruiters/notifications?page=1&limit=20&read=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["recruiters", "notifications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "read",
+                  "value": "false"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/:notificationId/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", ":notificationId", "read"],
+              "variable": [
+                {
+                  "key": "notificationId",
+                  "value": "notification_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Message to Candidate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_id\": \"candidate_user_id\",\n  \"subject\": \"Interview Invitation\",\n  \"message\": \"Hello, we would like to invite you for an interview for the Senior Developer position.\",\n  \"message_type\": \"interview_invitation\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages"]
+            }
+          }
+        },
+        {
+          "name": "Get Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/messages?page=1&limit=20&type=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "type",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reply to Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Thank you for your interest. The interview is scheduled for tomorrow at 2 PM.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/messages/:messageId/reply",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", ":messageId", "reply"],
+              "variable": [
+                {
+                  "key": "messageId",
+                  "value": "message_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Profile Management",
+      "item": [
+        {
+          "name": "Get Candidate Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Update Candidate Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+84-987-654-321\",\n  \"date_of_birth\": \"1990-05-15\",\n  \"gender\": \"male\",\n  \"address\": \"123 Nguyen Hue Street, District 1, Ho Chi Minh City\",\n  \"bio\": \"Experienced full-stack developer with 5+ years in web development\",\n  \"linkedin_url\": \"https://linkedin.com/in/johndoe\",\n  \"github_url\": \"https://github.com/johndoe\",\n  \"portfolio_url\": \"https://johndoe.dev\",\n  \"cv_file_url\": \"/uploads/cv/johndoe_cv.pdf\",\n  \"desired_salary_min\": 1500,\n  \"desired_salary_max\": 2500,\n  \"desired_salary_currency\": \"USD\",\n  \"job_preferences\": {\n    \"job_types\": [\"full-time\", \"remote\"],\n    \"locations\": [\"Ho Chi Minh City\", \"Remote\"],\n    \"industries\": [\"Technology\", \"Fintech\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/profile",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "profile"]
+            }
+          }
+        },
+        {
+          "name": "Get Candidate Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/dashboard",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "dashboard"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Experience Management",
+      "item": [
+        {
+          "name": "Get Candidate Experiences",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/experiences",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "experiences"]
+            }
+          }
+        },
+        {
+          "name": "Add Experience",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"company_name\": \"Tech Solutions Inc\",\n  \"position\": \"Senior Full Stack Developer\",\n  \"start_date\": \"2020-01-15\",\n  \"end_date\": \"2023-12-31\",\n  \"is_current\": false,\n  \"description\": \"Developed and maintained web applications using React, Node.js, and MongoDB. Led a team of 3 junior developers.\",\n  \"achievements\": [\"Increased application performance by 40%\", \"Led migration to microservices architecture\"],\n  \"technologies_used\": [\"React\", \"Node.js\", \"MongoDB\", \"AWS\", \"Docker\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/experiences",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "experiences"]
+            }
+          }
+        },
+        {
+          "name": "Update Experience",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": \"Lead Full Stack Developer\",\n  \"description\": \"Updated description with more details\",\n  \"is_current\": true,\n  \"end_date\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/experiences/:experienceId",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "experiences", ":experienceId"],
+              "variable": [
+                {
+                  "key": "experienceId",
+                  "value": "experience_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Experience",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/experiences/:experienceId",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "experiences", ":experienceId"],
+              "variable": [
+                {
+                  "key": "experienceId",
+                  "value": "experience_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Education Management",
+      "item": [
+        {
+          "name": "Get Candidate Educations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/educations",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "educations"]
+            }
+          }
+        },
+        {
+          "name": "Add Education",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institution_name\": \"University of Technology\",\n  \"degree\": \"Bachelor of Computer Science\",\n  \"field_of_study\": \"Software Engineering\",\n  \"start_date\": \"2016-09-01\",\n  \"end_date\": \"2020-06-30\",\n  \"is_current\": false,\n  \"gpa\": 3.8,\n  \"max_gpa\": 4.0,\n  \"description\": \"Specialized in web development and database systems\",\n  \"achievements\": [\"Dean's List for 4 semesters\", \"Best Final Project Award\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/educations",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "educations"]
+            }
+          }
+        },
+        {
+          "name": "Update Education",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gpa\": 3.9,\n  \"description\": \"Updated description\",\n  \"achievements\": [\"Dean's List for 6 semesters\", \"Best Final Project Award\", \"Programming Contest Winner\"]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/educations/:educationId",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "educations", ":educationId"],
+              "variable": [
+                {
+                  "key": "educationId",
+                  "value": "education_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Education",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/educations/:educationId",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "educations", ":educationId"],
+              "variable": [
+                {
+                  "key": "educationId",
+                  "value": "education_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Skills Management",
+      "item": [
+        {
+          "name": "Get Candidate Skills",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/skills",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "skills"]
+            }
+          }
+        },
+        {
+          "name": "Add Skill",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"skill_name\": \"React.js\",\n  \"proficiency_level\": \"expert\",\n  \"years_of_experience\": 4,\n  \"category\": \"Frontend Framework\",\n  \"is_certified\": true,\n  \"certification_name\": \"React Developer Certification\",\n  \"certification_url\": \"https://certificates.com/react-cert-123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/skills",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "skills"]
+            }
+          }
+        },
+        {
+          "name": "Update Skill",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proficiency_level\": \"expert\",\n  \"years_of_experience\": 5,\n  \"is_certified\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/skills/:skillId",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "skills", ":skillId"],
+              "variable": [
+                {
+                  "key": "skillId",
+                  "value": "skill_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Skill",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/skills/:skillId",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "skills", ":skillId"],
+              "variable": [
+                {
+                  "key": "skillId",
+                  "value": "skill_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Job Search & Applications",
+      "item": [
+        {
+          "name": "Search Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/jobs/search?page=1&limit=20&keywords=developer&location=Ho Chi Minh City&job_type=full-time&experience_level=senior&salary_min=1500&category=",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "jobs", "search"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "keywords",
+                  "value": "developer"
+                },
+                {
+                  "key": "location",
+                  "value": "Ho Chi Minh City"
+                },
+                {
+                  "key": "job_type",
+                  "value": "full-time"
+                },
+                {
+                  "key": "experience_level",
+                  "value": "senior"
+                },
+                {
+                  "key": "salary_min",
+                  "value": "1500"
+                },
+                {
+                  "key": "category",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Apply for Job",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cover_letter\": \"Dear Hiring Manager,\\n\\nI am writing to express my interest in the Senior Developer position. With over 5 years of experience in full-stack development, I believe I would be a great fit for your team.\\n\\nBest regards,\\nJohn Doe\",\n  \"additional_notes\": \"Available for immediate start\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/candidates/jobs/:jobId/apply",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "jobs", ":jobId", "apply"],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "job_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Candidate Applications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/applications?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "applications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Withdraw Application",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/applications/:applicationId/withdraw",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "applications", ":applicationId", "withdraw"],
+              "variable": [
+                {
+                  "key": "applicationId",
+                  "value": "application_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Saved Jobs",
+      "item": [
+        {
+          "name": "Get Saved Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/jobs/saved?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "jobs", "saved"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Save Job",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/jobs/:jobId/save",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "jobs", ":jobId", "save"],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "job_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unsave Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/jobs/:jobId/unsave",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "jobs", ":jobId", "unsave"],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "job_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Interviews",
+      "item": [
+        {
+          "name": "Get Candidate Interviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/interviews?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "interviews"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Interview Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/interviews/:interviewId",
+              "host": ["{{baseUrl}}"],
+              "path": ["interviews", ":interviewId"],
+              "variable": [
+                {
+                  "key": "interviewId",
+                  "value": "interview_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Candidate - Notifications & Messages",
+      "item": [
+        {
+          "name": "Get Candidate Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/candidates/notifications?page=1&limit=20&read=false",
+              "host": ["{{baseUrl}}"],
+              "path": ["candidates", "notifications"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "read",
+                  "value": "false"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/:notificationId/read",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", ":notificationId", "read"],
+              "variable": [
+                {
+                  "key": "notificationId",
+                  "value": "notification_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark All Notifications as Read",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/mark-all-read",
+              "host": ["{{baseUrl}}"],
+              "path": ["notifications", "mark-all-read"]
+            }
+          }
+        },
+        {
+          "name": "Get Messages (Inbox)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/messages/inbox?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", "inbox"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Sent Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/messages/sent?page=1&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", "sent"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Send Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"recipient_id\": \"recruiter_user_id\",\n  \"subject\": \"Question about Job Position\",\n  \"message\": \"Hello, I have some questions about the Senior Developer position. Could we schedule a call?\",\n  \"message_type\": \"job_inquiry\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages"]
+            }
+          }
+        },
+        {
+          "name": "Reply to Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Thank you for your response. I am available for the interview on Tuesday at 2 PM.\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/messages/:messageId/reply",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", ":messageId", "reply"],
+              "variable": [
+                {
+                  "key": "messageId",
+                  "value": "message_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Message",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/messages/:messageId",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", ":messageId"],
+              "variable": [
+                {
+                  "key": "messageId",
+                  "value": "message_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public APIs",
+      "item": [
+        {
+          "name": "Get All Jobs (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/jobs?page=1&limit=20&keywords=&location=&job_type=&experience_level=&category=",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "keywords",
+                  "value": ""
+                },
+                {
+                  "key": "location",
+                  "value": ""
+                },
+                {
+                  "key": "job_type",
+                  "value": ""
+                },
+                {
+                  "key": "experience_level",
+                  "value": ""
+                },
+                {
+                  "key": "category",
+                  "value": ""
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Job Details (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/jobs/:jobId",
+              "host": ["{{baseUrl}}"],
+              "path": ["jobs", ":jobId"],
+              "variable": [
+                {
+                  "key": "jobId",
+                  "value": "job_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Job Categories (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/job-categories",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-categories"]
+            }
+          }
+        },
+        {
+          "name": "Get Job Category Details (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/job-categories/:categoryId",
+              "host": ["{{baseUrl}}"],
+              "path": ["job-categories", ":categoryId"],
+              "variable": [
+                {
+                  "key": "categoryId",
+                  "value": "category_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Service Plans (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-plans",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-plans"]
+            }
+          }
+        },
+        {
+          "name": "Get Service Plan Details (Public)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/service-plans/:planId",
+              "host": ["{{baseUrl}}"],
+              "path": ["service-plans", ":planId"],
+              "variable": [
+                {
+                  "key": "planId",
+                  "value": "plan_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "File Upload",
+      "item": [
+        {
+          "name": "Upload File",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "path/to/your/file.pdf",
+                  "description": "The file to upload (required)"
+                },
+                {
+                  "key": "upload_purpose",
+                  "value": "cv",
+                  "type": "text",
+                  "description": "Purpose: cv, cover_letter, portfolio, company_logo, profile_avatar, certificate, report_evidence"
+                },
+                {
+                  "key": "is_temporary",
+                  "value": "false",
+                  "type": "text",
+                  "description": "Whether file is temporary (true/false)"
+                },
+                {
+                  "key": "is_public",
+                  "value": "false",
+                  "type": "text",
+                  "description": "Whether file is public (true/false)"
+                },
+                {
+                  "key": "related_entity_type",
+                  "value": "",
+                  "type": "text",
+                  "description": "Related entity: User, Job, Application, Message, Report (optional)"
+                },
+                {
+                  "key": "related_entity_id",
+                  "value": "",
+                  "type": "text",
+                  "description": "Related entity ID (optional)"
+                },
+                {
+                  "key": "expires_in_days",
+                  "value": "",
+                  "type": "text",
+                  "description": "Expiration in days for temporary files (optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/upload",
+              "host": ["{{baseUrl}}"],
+              "path": ["upload"]
+            },
+            "description": "Upload a file. Supports images, documents, archives up to 10MB. Files are automatically organized by type."
+          }
+        },
+        {
+          "name": "Get Uploaded Files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/upload?page=1&limit=10&file_type=&upload_purpose=&is_temporary=",
+              "host": ["{{baseUrl}}"],
+              "path": ["upload"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number"
+                },
+                {
+                  "key": "limit",
+                  "value": "10",
+                  "description": "Items per page"
+                },
+                {
+                  "key": "file_type",
+                  "value": "",
+                  "description": "Filter by type: image, document, video, audio, archive"
+                },
+                {
+                  "key": "upload_purpose",
+                  "value": "",
+                  "description": "Filter by purpose: cv, cover_letter, portfolio, etc."
+                },
+                {
+                  "key": "is_temporary",
+                  "value": "",
+                  "description": "Filter temporary files: true/false"
+                }
+              ]
+            },
+            "description": "Get user's uploaded files with pagination and filtering options."
+          }
+        },
+        {
+          "name": "Get File Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/upload/:fileId",
+              "host": ["{{baseUrl}}"],
+              "path": ["upload", ":fileId"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "file_id_here",
+                  "description": "File ID from upload response"
+                }
+              ]
+            },
+            "description": "Get detailed information about a specific file."
+          }
+        },
+        {
+          "name": "Download File",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/upload/:fileId/download",
+              "host": ["{{baseUrl}}"],
+              "path": ["upload", ":fileId", "download"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "file_id_here",
+                  "description": "File ID to download"
+                }
+              ]
+            },
+            "description": "Download file with original filename. Increments download counter."
+          }
+        },
+        {
+          "name": "Delete File",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/upload/:fileId",
+              "host": ["{{baseUrl}}"],
+              "path": ["upload", ":fileId"],
+              "variable": [
+                {
+                  "key": "fileId",
+                  "value": "file_id_here",
+                  "description": "File ID to delete"
+                }
+              ]
+            },
+            "description": "Delete file from both database and file system."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports (General)",
+      "item": [
+        {
+          "name": "Create Report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reported_type\": \"job\",\n  \"reported_id\": \"job_id_here\",\n  \"report_reason\": \"inappropriate_content\",\n  \"description\": \"This job posting contains inappropriate language and requirements\",\n  \"additional_info\": \"Job posting requests personal information that seems suspicious\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/reports",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports"]
+            }
+          }
+        },
+        {
+          "name": "Get My Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/my-reports?page=1&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "my-reports"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Report Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/:reportId",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", ":reportId"],
+              "variable": [
+                {
+                  "key": "reportId",
+                  "value": "report_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create Payment (Recruiter)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"subscription_id\": \"subscription_id_here\",\n  \"payment_method\": \"credit_card\",\n  \"amount\": 99.99,\n  \"currency\": \"USD\",\n  \"payment_gateway\": \"stripe\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments"]
+            }
+          }
+        },
+        {
+          "name": "Get Payment History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments?page=1&limit=10&status=all",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
+                },
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Payment Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/payments/:paymentId",
+              "host": ["{{baseUrl}}"],
+              "path": ["payments", ":paymentId"],
+              "variable": [
+                {
+                  "key": "paymentId",
+                  "value": "payment_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "User Management (General)",
+      "item": [
+        {
+          "name": "Get User Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", ":userId"],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "user_id_here"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Full Name\",\n  \"email\": \"newemail@example.com\",\n  \"phone\": \"+84-123-456-789\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/:userId",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", ":userId"],
+              "variable": [
+                {
+                  "key": "userId",
+                  "value": "user_id_here"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "System Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/../health",
+              "host": ["{{baseUrl}}"],
+              "path": ["..", "health"]
+            }
+          }
+        },
+        {
+          "name": "API Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/..",
+              "host": ["{{baseUrl}}"],
+              "path": [".."]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

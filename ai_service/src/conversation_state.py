@@ -22,13 +22,23 @@ THANKS_PAT = re.compile(r"\b(cảm ơn|cam on|cám ơn|thanks|thank you|tks|thx)
 GOODBYE_PAT = re.compile(r"\b(tạm biệt|tam biet|bye|bai bai|see you|hen gap|hẹn gặp|goodbye)\b", re.I)
 
 ROLE_PAT = re.compile(r"\b(backend|frontend|fullstack|devops|qa|tester|data|android|ios|node|react|java|python)\b", re.I)
-JOB_WORD_PAT = re.compile(r"\b(job|việc|viec|công việc|cong viec|việc làm|viec lam|position)\b", re.I)
+JOB_WORD_PAT = re.compile(r"\b(job|việc|viec|công việc|cong viec|việc làm|viec lam|vị trí|vi tri|position)\b", re.I)
 FIND_PAT = re.compile(r"\b(tìm|tim|gợi ý|goi y|phù hợp|phu hop|search|find|recommend)\b", re.I)
 REVIEW_PAT = re.compile(r"\b(review|đánh giá|danh gia|xem|soát|soat)\b", re.I)
 PROFILE_PAT = re.compile(r"\b(hồ\s*sơ|ho\s*so|cv|profile)\b", re.I)
 SELF_MATCH_PAT = re.compile(r"\b(phu hop voi (toi|ho so|cv)|viec phu hop voi toi|job phu hop voi toi)\b", re.I)
 
 CHANGE_PAT = re.compile(r"\b(đổi job|doi job|chọn lại|chon lai|show jobs|gợi ý lại|goi y lai)\b", re.I)
+CONTEXT_BREAK_PAT = re.compile(
+    r"\b(job khac|viec khac|cong viec khac|vi tri khac|"
+    r"job moi|viec moi|cong viec moi|vi tri moi|"
+    r"job nao khac|viec nao khac|cong viec nao khac|"
+    r"vi tri nao khac|"
+    r"job nao nua|viec nao nua|cong viec nao nua|vi tri nao|"
+    r"cai nao nua|con nao nua|tiep theo)\b",
+    re.I,
+)
+RESET_LIST_PAT = re.compile(r"\b(quay lai|tro ve|danh sach|list|menu)\b", re.I)
 
 # Value-add intents
 ROADMAP_PAT = re.compile(r"\b(lộ\s*trình|lo\s*trinh|roadmap|plan|kế\s*hoạch|ke\s*hoach|14\s*(ngày|day))\b", re.I)
@@ -120,11 +130,32 @@ def fuzzy_role_match(text: str) -> bool:
 
 def parse_pick_index(text: str) -> Optional[int]:
     """
-    "chọn 1", "so 2", "số 3" => 0-based index
+    "chon 1", "so 2", "job 3", "cong viec 4" => 0-based index
     """
-    t = clean_text(text).lower()
-    m = re.search(r"\b(chọn|chon|số|so|pick)\s*([0-9]{1,2})\b", t)
+    t = norm_basic(text)
+    m = re.search(r"\b(chon|so|pick)\s*([0-9]{1,2})\b", t)
     if not m:
+        m = re.search(r"\b(job|viec|cong viec|cv)\s*([0-9]{1,2})\b", t)
+    if not m:
+        ordinal_map = {
+            "dau tien": 0,
+            "thu nhat": 0,
+            "thu hai": 1,
+            "thu ba": 2,
+            "thu tu": 3,
+            "thu nam": 4,
+            "thu sau": 5,
+            "thu bay": 6,
+            "thu tam": 7,
+            "thu chin": 8,
+            "thu muoi": 9,
+            "first": 0,
+            "second": 1,
+            "third": 2,
+        }
+        for key, idx in ordinal_map.items():
+            if re.search(rf"\b{re.escape(key)}\b", t):
+                return idx
         return None
     try:
         idx = int(m.group(2))
@@ -133,7 +164,6 @@ def parse_pick_index(text: str) -> Optional[int]:
         return idx - 1
     except Exception:
         return None
-
 
 def parse_city_from_text(text: str) -> Optional[str]:
     t = clean_text(text)
@@ -409,6 +439,17 @@ def route_candidate_intent(question: str, payload: dict, llm: Optional[LLMServic
     if pick is not None:
         return {"intent": "SELECT_JOB", "confidence": 1.0, "pick_index": pick}
 
+    # Allow bare numbers like "8" when we already have suggestions
+    num_only = re.fullmatch(r"\s*(\d{1,2})\s*", t)
+    if num_only:
+        sugs = payload.get("last_job_suggestions") or []
+        try:
+            idx = int(num_only.group(1))
+        except Exception:
+            idx = 0
+        if idx > 0 and sugs:
+            return {"intent": "SELECT_JOB", "confidence": 0.95, "pick_index": idx - 1}
+
     sugs = payload.get("last_job_suggestions") or []
     pick_by_text = match_suggestion_index(q, sugs)
     if pick_by_text is not None:
@@ -430,15 +471,42 @@ def route_candidate_intent(question: str, payload: dict, llm: Optional[LLMServic
             return {"intent": "INTERVIEW", "confidence": 0.98}
         if CHANGE_PAT.search(t):
             return {"intent": "CHANGE_JOB", "confidence": 1.0}
+        t_norm = norm_basic(q)
+        if not re.search(r"\b(job nay|viec nay|cong viec nay)\b", t_norm):
+            has_city = parse_city_from_text(q) is not None
+            has_role = bool(ROLE_PAT.search(t)) or fuzzy_role_match(q)
+            has_workloc = parse_work_location(q) is not None
+            wants_other = bool(CONTEXT_BREAK_PAT.search(t_norm))
+            wants_list = bool(RESET_LIST_PAT.search(t_norm))
+            wants_find_job = bool(re.search(r"\b(tim|goi y)\b", t_norm) and re.search(r"\b(job|viec|cong viec)\b", t_norm))
+            wants_fit_list = bool(
+                re.search(r"\b(phu hop|tot nhat|best|goi y)\b", t_norm)
+                and re.search(r"\b(job|viec|cong viec|vi tri)\b", t_norm)
+                and re.search(r"\b(nao|khac|nua)\b", t_norm)
+            )
+            has_self_match = bool(
+                SELF_MATCH_PAT.search(t_norm)
+                or re.search(r"\b(phu hop|hop)\b", t_norm)
+                and re.search(r"\b(job|viec|cong viec|vi tri)\b", t_norm)
+            )
+            if has_city or has_role or has_workloc or wants_other or wants_list or wants_find_job or wants_fit_list:
+                if has_self_match or re.search(r"\b(cv|ho so)\b", t_norm):
+                    return {"intent": "PROFILE_TO_JOBS", "confidence": 0.9, "context_breaker": True}
+                return {"intent": "JOB_SEARCH", "confidence": 0.9, "query": q, "context_breaker": True}
         return {"intent": "JOB_FIT", "confidence": 0.95}
 
     t_norm = norm_basic(q)
     has_profile = bool(re.search(r"\b(cv|ho so)\b", t_norm))
     has_job_word = bool(re.search(r"\b(job|viec|cong viec)\b", t_norm))
     has_find = bool(re.search(r"\b(tim|goi y|phu hop|recommend|search|find)\b", t_norm))
-    is_review = bool(REVIEW_PAT.search(t) and PROFILE_PAT.search(t)) or (has_profile and re.search(r"\b(review|danh gia|xem|soat)\b", t_norm))
+    is_review = bool(REVIEW_PAT.search(t) and PROFILE_PAT.search(t)) or (has_profile and re.search(r"\b(review|danh gia|xem|soat)\b", t_norm)) or bool(re.search(r"\breview\b", t_norm))
     is_find_job = bool(FIND_PAT.search(t) and JOB_WORD_PAT.search(t)) or (has_find and has_job_word)
-    is_profile_match = bool(SELF_MATCH_PAT.search(t_norm))
+    self_match_loose = bool(
+        re.search(r"\b(toi|minh|em)\b", t_norm)
+        and re.search(r"\b(phu hop|hop)\b", t_norm)
+        and has_job_word
+    )
+    is_profile_match = bool(SELF_MATCH_PAT.search(t_norm)) or self_match_loose
 
     if is_review:
         if is_find_job or (has_profile and has_job_word):
@@ -493,6 +561,7 @@ def route_recruiter_intent(question: str, payload: dict, llm: Optional[LLMServic
     t = q.lower().strip()
     payload = payload or {}
 
+    # Global intents (always highest priority)
     if is_reset(q):
         return {"intent": "RESET", "confidence": 1.0}
     if is_greeting(q):
@@ -538,4 +607,5 @@ Chỉ trả JSON. User: {q}
             pass
 
     return {"intent": "UNKNOWN", "confidence": 0.0}
+
 

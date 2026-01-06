@@ -262,8 +262,8 @@ def build_compare_message(job_title: str, a_md: dict, b_md: dict, a_fit: dict, b
 
     lines = [
         f"So sánh {a_name} và {b_name} cho job **{job_title}**:",
-        f"- {a_name}: điểm phù hợp {a_score}%, mạnh: {a_match or 'chưa rõ'}; thiếu critical: {a_missing or 'không'}",
-        f"- {b_name}: điểm phù hợp {b_score}%, mạnh: {b_match or 'chưa rõ'}; thiếu critical: {b_missing or 'không'}",
+        f"- {a_name}: điểm phù hợp {a_score}%, mạnh: {a_match or 'chưa rõ'}; thiếu kỹ năng bắt buộc: {a_missing or 'không'}",
+        f"- {b_name}: điểm phù hợp {b_score}%, mạnh: {b_match or 'chưa rõ'}; thiếu kỹ năng bắt buộc: {b_missing or 'không'}",
         f"Kết luận: {verdict} phù hợp hơn theo tiêu chí hiện tại.",
     ]
     return "\n".join(lines)
@@ -352,35 +352,90 @@ def is_non_it_role_question(question: str) -> bool:
     return any(k in q for k in non_it)
 
 
+def is_salary_question(question: str) -> bool:
+    q = norm_basic(question)
+    if not q:
+        return False
+    return bool(re.search(r"\b(luong|muc luong|thu nhap|salary|pay|compensation|offer|deal)\b", q))
+
+
+def _fmt_money(value: Any) -> str:
+    try:
+        return f"{int(value):,}"
+    except Exception:
+        return clean_text(value)
+
+
+def get_job_salary_range(job_id: str) -> Tuple[Optional[int], Optional[int], str]:
+    from .rag_service import _to_oid as _oid
+    oid = _oid(job_id)
+    if not oid:
+        return None, None, "VND"
+    db = get_database()
+    job = db.get_collection("jobs").find_one({"_id": oid}, {"salary_min": 1, "salary_max": 1, "salary_currency": 1})
+    if not job:
+        return None, None, "VND"
+    salary_min = job.get("salary_min") or 0
+    salary_max = job.get("salary_max") or 0
+    currency = job.get("salary_currency") or "VND"
+    if salary_min <= 0 and salary_max <= 0:
+        return None, None, currency
+    return int(salary_min) if salary_min else None, int(salary_max) if salary_max else None, currency
+
+
 def build_fit_message(question: str, fit: dict, job_title: str = "") -> str:
     q = norm_basic(question or "")
-    ask_strength = any(k in q for k in ["phu hop", "diem tot", "diem manh", "tot"])
+    ask_strength = any(k in q for k in ["phu hop", "diem", "%", "bao nhieu", "diem tot", "diem manh", "tot"])
     ask_why = any(k in q for k in ["vi sao", "ly do", "tai sao", "khong phu hop"])
+    ask_improve = any(
+        k in q
+        for k in [
+            "cai thien",
+            "can hoc",
+            "nen hoc",
+            "hoc them",
+            "bo sung",
+            "nang cao",
+            "cai thien ky nang",
+        ]
+    )
 
     matched = fit.get("matched") or []
     missing = fit.get("missing") or []
     missing_critical = fit.get("missing_critical") or []
     hard_reasons = fit.get("hard_reasons") or []
     score = fit.get("score")
+    try:
+        low_score = score is not None and float(score) < 10.0
+    except Exception:
+        low_score = False
 
     title = f" với job **{job_title}**" if job_title else ""
     matched_text = ", ".join(matched[:4]) if matched else "chưa thấy kỹ năng khớp rõ ràng"
     missing_text = ", ".join(missing[:4]) if missing else ""
     critical_text = ", ".join(missing_critical[:3]) if missing_critical else ""
 
+    def low_score_advice() -> str:
+        needs = missing_critical or missing or []
+        skills = ", ".join(needs[:2]) if needs else "nhiều kỹ năng chưa phù hợp"
+        return (
+            f" Gợi ý: Vị trí này đang cần {skills} mà CV của bạn chưa nêu rõ. "
+            "Bạn nên xem lộ trình cải thiện hoặc thử job manual/entry gần hơn."
+        )
+
     if fit.get("passed"):
         msg = f"Bạn khá phù hợp{title} (điểm phù hợp: {score}%). Điểm mạnh: {matched_text}."
         if missing_text:
             msg += f" Còn thiếu: {missing_text}."
         if critical_text:
-            msg += f" Thiếu critical: {critical_text}."
+            msg += f" Thiếu kỹ năng bắt buộc: {critical_text}."
         return msg
 
     reason_parts = []
     if hard_reasons:
         reason_parts.append("; ".join(hard_reasons))
     if critical_text:
-        reason_parts.append(f"Thiếu critical: {critical_text}")
+        reason_parts.append(f"Thiếu kỹ năng bắt buộc: {critical_text}")
     if missing_text and not ask_strength:
         reason_parts.append(f"Còn thiếu: {missing_text}")
 
@@ -390,19 +445,134 @@ def build_fit_message(question: str, fit: dict, job_title: str = "") -> str:
         if missing_text:
             msg += f" Còn thiếu: {missing_text}."
         if critical_text:
-            msg += f" Thiếu critical: {critical_text}."
+            msg += f" Thiếu kỹ năng bắt buộc: {critical_text}."
+        if low_score:
+            msg += low_score_advice()
         return msg
 
     if ask_why:
         reasons = "; ".join(reason_parts) if reason_parts else "thiếu kỹ năng so với yêu cầu"
-        return f"Bạn chưa phù hợp{title} (điểm phù hợp: {score}%) vì {reasons}."
+        msg = f"Bạn chưa phù hợp{title} (điểm phù hợp: {score}%) vì {reasons}."
+        if low_score:
+            msg += low_score_advice()
+        return msg
+
+    if ask_improve:
+        improve_bits = []
+        if critical_text:
+            improve_bits.append(f"Thiếu kỹ năng bắt buộc: {critical_text}")
+        if missing_text:
+            improve_bits.append(f"Còn thiếu: {missing_text}")
+        improve_text = "; ".join(improve_bits) if improve_bits else "Bạn nên bổ sung thêm kỹ năng liên quan đến job này."
+        msg = f"Để cải thiện cho job **{job_title}**, {improve_text}."
+        msg += " Nếu bạn muốn, mình có thể lập lộ trình 14 ngày để bạn bám theo."
+        return msg
 
     reasons = "; ".join(reason_parts) if reason_parts else "thiếu kỹ năng so với yêu cầu"
     msg = f"Hiện bạn chưa phù hợp{title} (điểm phù hợp: {score}%). Lý do chính: {reasons}."
     if matched:
         msg += f" Điểm bạn đang có: {matched_text}."
+    if low_score:
+        msg += low_score_advice()
     return msg
 
+
+
+def build_fit_message(question: str, fit: dict, job_title: str = "") -> str:
+    q = norm_basic(question or "")
+    ask_strength = any(k in q for k in ["phu hop", "diem", "%", "bao nhieu", "phan tram", "diem manh", "tot"])
+    ask_why = any(k in q for k in ["vi sao", "ly do", "tai sao", "khong phu hop"])
+    ask_improve = any(
+        k in q
+        for k in [
+            "cai thien",
+            "can hoc",
+            "nen hoc",
+            "hoc them",
+            "bo sung",
+            "nang cao",
+            "cai thien ky nang",
+        ]
+    )
+
+    matched = fit.get("matched") or []
+    missing = fit.get("missing") or []
+    missing_critical = fit.get("missing_critical") or []
+    hard_reasons = fit.get("hard_reasons") or []
+    score = fit.get("score")
+    try:
+        score_text = f"{float(score):.1f}"
+    except Exception:
+        score_text = "0.0"
+    try:
+        low_score = score is not None and float(score) < 10.0
+    except Exception:
+        low_score = False
+
+    title = f" cho job **{job_title}**" if job_title else ""
+    matched_text = ", ".join(matched[:4]) if matched else "chưa thấy kỹ năng khớp rõ ràng"
+    missing_text = ", ".join(missing[:4]) if missing else ""
+    critical_text = ", ".join(missing_critical[:3]) if missing_critical else ""
+
+    def low_score_advice() -> str:
+        needs = missing_critical or missing or []
+        skills = ", ".join(needs[:2]) if needs else "một vài kỹ năng cốt lõi"
+        return (
+            f" Gợi ý: Vị trí này đang cần {skills} mà CV của bạn chưa nêu rõ. "
+            "Bạn nên xem lộ trình cải thiện hoặc thử job manual/entry gần hơn."
+        )
+
+    if fit.get("passed"):
+        msg = f"Bạn khá phù hợp{title} (điểm phù hợp: {score_text}%). Bạn đang có: {matched_text}."
+        if missing_text:
+            msg += f" Còn thiếu: {missing_text}."
+        if critical_text:
+            msg += f" Thiếu kỹ năng bắt buộc: {critical_text}."
+        return msg
+
+    reason_parts = []
+    if hard_reasons:
+        reason_parts.append("; ".join(hard_reasons))
+    if critical_text:
+        reason_parts.append(f"Thiếu kỹ năng bắt buộc: {critical_text}")
+    if missing_text and not ask_strength:
+        reason_parts.append(f"Còn thiếu: {missing_text}")
+
+    if ask_strength:
+        msg = f"Mức phù hợp hiện tại của bạn{title} khoảng {score_text}%. Bạn đang có: {matched_text}."
+        if missing_text:
+            msg += f" Còn thiếu: {missing_text}."
+        if critical_text:
+            msg += f" Thiếu kỹ năng bắt buộc: {critical_text}."
+        if low_score:
+            msg += low_score_advice()
+        return msg
+
+    if ask_why:
+        reasons = "; ".join(reason_parts) if reason_parts else "thiếu kỹ năng so với yêu cầu"
+        msg = f"Lý do chính khiến mức phù hợp{title} chưa cao: {reasons}."
+        if low_score:
+            msg += low_score_advice()
+        return msg
+
+    if ask_improve:
+        improve_bits = []
+        if critical_text:
+            improve_bits.append(f"Thiếu kỹ năng bắt buộc: {critical_text}")
+        if missing_text:
+            improve_bits.append(f"Còn thiếu: {missing_text}")
+        improve_text = "; ".join(improve_bits) if improve_bits else "bổ sung thêm kỹ năng liên quan đến job này"
+        msg = f"Để cải thiện cơ hội cho job **{job_title}**, {improve_text}."
+        msg += " Nếu bạn muốn, mình có thể lập lộ trình 14 ngày để bạn bám theo."
+        return msg
+
+    reasons = "; ".join(reason_parts) if reason_parts else "thiếu kỹ năng so với yêu cầu"
+    msg = f"Mức phù hợp hiện tại của bạn{title} khoảng {score_text}%. Lý do chính: {reasons}."
+    if matched:
+        msg += f" Bạn đang có: {matched_text}."
+    if low_score:
+        msg += low_score_advice()
+    return msg
 
 
 def count_job_applications(job_id: str, statuses: Optional[List[str]] = None) -> Optional[int]:
@@ -432,7 +602,7 @@ def handle_candidate_competition(candidate_id: str, question: str, session_id: s
 
     job_id = payload.get("selected_job_id")
     if not job_id:
-        msg = "Ban chua chon job. Hay go: 'chon 1' sau khi minh goi y job."
+        msg = "Bạn chưa chọn job. Hãy gõ: 'chọn 1' sau khi mình gợi ý job."
         rag_service.append_message(session_id, "user", question)
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
@@ -474,7 +644,7 @@ def handle_candidate_competition(candidate_id: str, question: str, session_id: s
     sample_limit = int(os.getenv("COMPETITION_SAMPLE_LIMIT", "200"))
     applied_ids = rag_service.get_applied_candidate_ids(job_id, limit=sample_limit) if sample_limit > 0 else []
 
-    lines = ["Minh hieu ban dang muon biet muc canh tranh cua job nay."]
+    lines = ["Mình hiểu bạn đang muốn biết mức cạnh tranh của job này."]
     if total is None:
         lines.append("Hien minh chua co du lieu so luong ung vien ung tuyen cho job nay.")
     elif total == 0:
@@ -486,7 +656,7 @@ def handle_candidate_competition(candidate_id: str, question: str, session_id: s
     in_pool = candidate_id in applied_ids
     if ask_rank:
         if not in_pool:
-            lines.append("Ban chua ung tuyen nen minh chua the xep hang phan tram.")
+            lines.append("Bạn chưa ứng tuyển nên mình chưa thể xếp hạng phần trăm.")
         else:
             cand_map = rag_service.get_candidates_meta_batch(applied_ids)
             cand_score = fit.get("score") or 0.0
@@ -506,7 +676,7 @@ def handle_candidate_competition(candidate_id: str, question: str, session_id: s
                 note = ""
                 if total and scored < total:
                     note = f" (uoc tinh tren mau {scored} ho so)"
-                lines.append(f"Uoc tinh ban dang o top {percentile}%{note}.")
+                lines.append(f"Ước tính bạn đang ở top {percentile}%{note}.")
             else:
                 lines.append("Hien chua du du lieu de xep hang phan tram.")
 
@@ -597,6 +767,12 @@ def build_recruiter_jobs_message(jobs: List[dict]) -> str:
         return "Không tìm thấy job nào của bạn. Hãy tạo job trước."
     return f"Bạn có {len(jobs)} job. Hãy chọn 1 (gõ: 'chọn 1') để tiếp tục."
 
+def build_recruiter_jobs_message(jobs: List[dict]) -> str:
+    if not jobs:
+        return "Bạn chưa có job nào. Hãy tạo job trước nhé."
+    return f"Bạn có {len(jobs)} job. Hãy chọn 1 (gõ: 'chọn 1') để tiếp tục."
+
+
 def build_recruiter_top5(ranked: List[dict]) -> List[dict]:
     out = []
     for r in ranked[:5]:
@@ -606,7 +782,7 @@ def build_recruiter_top5(ranked: List[dict]) -> List[dict]:
         if hard_reasons:
             reasons.extend(hard_reasons)
         elif missing_critical:
-            reasons.append("Thieu ky nang critical: " + ", ".join(missing_critical))
+            reasons.append("Thiếu kỹ năng bắt buộc: " + ", ".join(missing_critical))
         else:
             reasons.append("Phu hop tong the.")
         out.append(
@@ -615,6 +791,58 @@ def build_recruiter_top5(ranked: List[dict]) -> List[dict]:
                 "score": r.get("score", 0),
                 "passed": r.get("passed", False),
                 "why": " | ".join(reasons),
+            }
+        )
+    return out
+
+
+def build_recruiter_top5(ranked: List[dict]) -> List[dict]:
+    out = []
+    for r in ranked[:5]:
+        reasons = []
+        hard_reasons = r.get("hard_reasons") or []
+        missing_critical = r.get("missing_critical") or []
+        if hard_reasons:
+            reasons.extend(hard_reasons)
+        elif missing_critical:
+            reasons.append("Thiếu kỹ năng bắt buộc: " + ", ".join(missing_critical))
+        else:
+            reasons.append("Phù hợp tổng thể.")
+        out.append(
+            {
+                "candidate_id": r.get("candidate_id"),
+                "score": r.get("score", 0),
+                "passed": r.get("passed", False),
+                "why": " | ".join(reasons),
+            }
+        )
+    return out
+
+
+def build_recruiter_jobs_message(jobs: List[dict]) -> str:
+    if not jobs:
+        return "Bạn chưa có job nào. Hãy đăng tin trước nhé."
+    return f"Bạn có {len(jobs)} job. Hãy chọn 1 (gõ: 'chọn 1') để tiếp tục."
+
+
+def build_recruiter_top5(ranked: List[dict]) -> List[dict]:
+    out = []
+    for r in ranked[:5]:
+        reasons = []
+        hard_reasons = [clean_text(x) for x in (r.get("hard_reasons") or []) if clean_text(x)]
+        missing_critical = [clean_text(x) for x in (r.get("missing_critical") or []) if clean_text(x)]
+        if hard_reasons:
+            reasons.extend(hard_reasons)
+        if missing_critical:
+            reasons.append("Thiếu kỹ năng bắt buộc: " + ", ".join(missing_critical))
+        if not reasons:
+            reasons.append("Phù hợp tổng thể.")
+        out.append(
+            {
+                "candidate_id": r.get("candidate_id"),
+                "score": r.get("score", 0),
+                "passed": r.get("passed", False),
+                "why": "; ".join(reasons),
             }
         )
     return out
@@ -874,7 +1102,7 @@ def handle_candidate_profile_review(candidate_id: str, question: str, session_id
 """.strip()
 
     prompt = f"""
-Bạn là chuyên gia CV & nghề nghiệp. Trả lời tiếng Việt tự nhiên, thân thiện, thực tế.
+Bạn là chuyên gia CV & nghề nghiệp. Trả lời tiếng Việt tự nhiên, thân thiện, súc tích.
 CHỈ dựa trên FACTS + CONTEXT, không bịa. Nếu thiếu thông tin, liệt kê vào missing_info.
 
 User question: {question}
@@ -905,7 +1133,7 @@ Output JSON.
         answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
     except Exception as exc:
         logger.error("Candidate profile review LLM failed: %s", exc, exc_info=True)
-        msg = "Minh chua the review CV luc nay. Ban thu lai sau hoac gui them thong tin (ky nang, nam kinh nghiem, vi tri mong muon)."
+        msg = "Mình chưa thể review CV lúc này. Bạn thử lại sau hoặc gửi thêm thông tin (kỹ năng, năm kinh nghiệm, vị trí mong muốn)."
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok(
             {
@@ -918,8 +1146,70 @@ Output JSON.
     if not isinstance(answer, dict):
         answer = {}
 
-    # friendly message for chat bubble
-    msg = clean_text(answer.get("summary") if isinstance(answer, dict) else "") or "Mình đã review CV của bạn."
+    def _list_to_text(items: Any, limit: int = 5) -> str:
+        if not isinstance(items, list):
+            return ""
+        cleaned = [clean_text(x) for x in items if clean_text(x)]
+        if not cleaned:
+            return ""
+        return ", ".join(cleaned[:limit])
+
+    def _norm_list_to_display(items: Any, limit: int = 5) -> str:
+        if not isinstance(items, list):
+            return ""
+        cleaned = []
+        for x in items:
+            v = clean_text(x)
+            if not v:
+                continue
+            v = v.replace("_", " ").replace("-", " ")
+            v = re.sub(r"\s+", " ", v).strip()
+            cleaned.append(v)
+        if not cleaned:
+            return ""
+        return ", ".join(cleaned[:limit])
+
+    summary = clean_text(answer.get("summary") if isinstance(answer, dict) else "")
+    strengths = _list_to_text(answer.get("strengths"))
+    weaknesses = _list_to_text(answer.get("weaknesses"))
+    missing_info = _list_to_text(answer.get("missing_info"))
+    improvements = _list_to_text(answer.get("improvements"))
+
+    parts = []
+    if summary:
+        parts.append(summary)
+    if strengths:
+        parts.append(f"Điểm mạnh: {strengths}.")
+    if weaknesses:
+        parts.append(f"Điểm cần cải thiện: {weaknesses}.")
+    if improvements and improvements != weaknesses:
+        parts.append(f"Gợi ý cải thiện: {improvements}.")
+    if missing_info:
+        parts.append(f"Thiếu thông tin: {missing_info}.")
+
+    msg = " ".join(parts).strip()
+    if not msg:
+        fallback_strengths = _list_to_text(cand_meta.get("primary_skills_known_display") or cand_meta.get("skills_known_display") or [])
+        fallback_missing = _norm_list_to_display(
+            cand_meta.get("skills_unknown_norm") or cand_meta.get("skills_from_experience_unknown_norm") or []
+        )
+        fallback_parts = ["Mình đã xem CV của bạn."]
+        years_exp = cand_meta.get("years_exp")
+        if years_exp:
+            fallback_parts.append(f"Kinh nghiệm: {years_exp} năm.")
+        if fallback_strengths:
+            fallback_parts.append(f"Điểm mạnh: {fallback_strengths}.")
+        if fallback_missing:
+            fallback_parts.append(f"Điểm cần cải thiện: {fallback_missing}.")
+            fallback_parts.append(f"Để tăng cơ hội ứng tuyển, bạn nên ưu tiên: {fallback_missing}.")
+        msg = " ".join(fallback_parts).strip()
+    else:
+        if not weaknesses and not improvements:
+            fallback_missing = _norm_list_to_display(
+                cand_meta.get("skills_unknown_norm") or cand_meta.get("skills_from_experience_unknown_norm") or []
+            )
+            if fallback_missing:
+                msg = f"{msg} Để tăng cơ hội ứng tuyển, bạn nên ưu tiên: {fallback_missing}."
 
     rag_service.append_message(session_id, "assistant", msg)
 
@@ -933,7 +1223,7 @@ Output JSON.
     )
 
 
-def handle_candidate_profile_to_jobs(candidate_id: str, question: str, session_id: str):
+def handle_candidate_profile_to_jobs(candidate_id: str, question: str, session_id: str, preface: Optional[str] = None):
     sess = rag_service.get_session(session_id) or {}
     payload = sess.get("payload") or {}
     prefs = ChatPrefs.from_payload(payload)
@@ -971,6 +1261,8 @@ def handle_candidate_profile_to_jobs(candidate_id: str, question: str, session_i
             "last_query": question,
             "last_action": "PROFILE_TO_JOBS",
             "last_suggestions_relaxed": relaxed,
+            "selected_job_id": None,
+            "selected_job_title": "",
         },
     )
 
@@ -981,6 +1273,8 @@ def handle_candidate_profile_to_jobs(candidate_id: str, question: str, session_i
             "Hiện mình chưa thấy job phù hợp từ CV trong dữ liệu. "
             "Bạn cho mình vị trí/khu vực mong muốn để mình tìm tiếp nhé."
         )
+    if preface:
+        msg = f"{preface}\n{msg}"
     rag_service.append_message(session_id, "assistant", msg)
 
     return api_ok(
@@ -993,7 +1287,13 @@ def handle_candidate_profile_to_jobs(candidate_id: str, question: str, session_i
     )
 
 
-def handle_candidate_job_search(candidate_id: str, question: str, session_id: str):
+def handle_candidate_job_search(
+    candidate_id: str,
+    question: str,
+    session_id: str,
+    preface: Optional[str] = None,
+    context_breaker: bool = False,
+):
     sess = rag_service.get_session(session_id) or {}
     payload = sess.get("payload") or {}
     prefs = ChatPrefs.from_payload(payload)
@@ -1001,19 +1301,40 @@ def handle_candidate_job_search(candidate_id: str, question: str, session_id: st
     rag_service.append_message(session_id, "user", question)
     last_query = clean_text(payload.get("last_query"))
 
-    # follow-up rewrite
-    query = rewrite_followup_query(question, state=payload, last_query=last_query, kind="candidate")
+    # follow-up rewrite (skip when breaking context)
+    if context_breaker:
+        query = question
+    else:
+        query = rewrite_followup_query(question, state=payload, last_query=last_query, kind="candidate")
 
     sugs = rag_service.suggest_jobs(query, limit=int(os.getenv("MAX_SUGGESTIONS", "10")), prefs=prefs)
     sugs = dedupe_jobs(sugs, max_n=10)
+    if context_breaker and not sugs:
+        relaxed_prefs = ChatPrefs.from_payload(payload)
+        relaxed_prefs.city = ""
+        relaxed_prefs.city_norm = ""
+        relaxed_prefs.work_location_norm = ""
+        relaxed_prefs.avoid_work_location_norm = ""
+        relaxed_prefs.role_hint = ""
+        relaxed_prefs.salary_min = None
+        sugs = rag_service.suggest_jobs(query, limit=int(os.getenv("MAX_SUGGESTIONS", "10")), prefs=relaxed_prefs)
+        sugs = dedupe_jobs(sugs, max_n=10)
 
     rag_service.update_session_payload(
         session_id,
-        {"last_job_suggestions": sugs, "last_query": query, "last_action": "JOB_SEARCH"},
+        {
+            "last_job_suggestions": sugs,
+            "last_query": query,
+            "last_action": "JOB_SEARCH",
+            "selected_job_id": None,
+            "selected_job_title": "",
+        },
     )
 
     msg = f"Mình tìm được {len(sugs)} job theo tiêu chí của bạn. Chọn 1 job để mình chấm fit nhé (gõ: **chọn 1**)."
     msg = build_suggest_jobs_message(sugs, "search")
+    if preface:
+        msg = f"{preface}\n{msg}"
     rag_service.append_message(session_id, "assistant", msg)
 
     return api_ok(
@@ -1060,7 +1381,13 @@ def handle_candidate_select_job(candidate_id: str, pick_index: int, session_id: 
     )
 
 
-def handle_candidate_job_fit(candidate_id: str, question: str, session_id: str, job_id: Optional[str] = None):
+def handle_candidate_job_fit(
+    candidate_id: str,
+    question: str,
+    session_id: str,
+    job_id: Optional[str] = None,
+    preface: str = "",
+):
     sess = rag_service.get_session(session_id) or {}
     payload = sess.get("payload") or {}
     history = get_owner_history("candidate", candidate_id) or (sess.get("messages") or [])
@@ -1080,6 +1407,33 @@ def handle_candidate_job_fit(candidate_id: str, question: str, session_id: str, 
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok(
             {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+            message=msg,
+        )
+
+    if is_salary_question(question):
+        title = job_meta.get("job_title") or ""
+        salary_min, salary_max, currency = get_job_salary_range(job_id)
+        if salary_min or salary_max:
+            if salary_min and salary_max:
+                msg = (
+                    f"Muc luong du kien cho job **{title}**: "
+                    f"{_fmt_money(salary_min)}-{_fmt_money(salary_max)} {currency}."
+                )
+            elif salary_min:
+                msg = f"Muc luong toi thieu cho job **{title}**: {_fmt_money(salary_min)} {currency}."
+            else:
+                msg = f"Muc luong toi da cho job **{title}**: {_fmt_money(salary_max)} {currency}."
+        else:
+            msg = "Minh chua co thong tin muc luong cua job nay. Ban nen hoi HR khi phong van."
+        rag_service.update_session_payload(session_id, {"last_action": "JOB_INFO"})
+        rag_service.append_message(session_id, "user", question)
+        rag_service.append_message(session_id, "assistant", msg)
+        return api_ok(
+            {
+                "view": "candidate_job_info",
+                "result": {"job_id": job_id, "salary_min": salary_min, "salary_max": salary_max, "currency": currency},
+                "state": session_to_state(rag_service.get_session(session_id) or {}, 20),
+            },
             message=msg,
         )
 
@@ -1154,6 +1508,75 @@ def handle_candidate_job_fit(candidate_id: str, question: str, session_id: str, 
         history=history,
         fallback=msg,
     )
+    msg_keep = msg
+    top5 = answer.get("top5") or []
+    top5 = []
+    msg_lines = []
+    if top5:
+        msg_lines.append("Mình đã xếp hạng ứng viên theo dữ liệu hiện có. Top phù hợp nhất:")
+        ranked_by_id = {clean_text(x.get("candidate_id")): x for x in ranked}
+        for idx, item in enumerate(top5, start=1):
+            cid = clean_text(item.get("candidate_id"))
+            md = cand_map.get(cid) or {}
+            name = candidate_display_name(md) if md else (f"Ứng viên {cid[:6]}" if cid else f"Ứng viên {idx}")
+            score = item.get("score")
+            try:
+                score_text = f"{float(score):.1f}%"
+            except Exception:
+                score_text = f"{score}" if score is not None else "0.0%"
+            passed = item.get("passed")
+            status = "Đạt" if passed else "Chưa đạt"
+            reason = clean_text(item.get("why") or "")
+            if not reason and cid in ranked_by_id:
+                r = ranked_by_id[cid]
+                hard = r.get("hard_reasons") or []
+                missing_critical = r.get("missing_critical") or []
+                if hard:
+                    reason = "; ".join(hard)
+                elif missing_critical:
+                    reason = "Thiếu kỹ năng bắt buộc: " + ", ".join(missing_critical)
+                else:
+                    reason = "Phù hợp tổng thể"
+            if reason:
+                msg_lines.append(f"{idx}. {name} - {score_text} - {status}. Lý do: {reason}.")
+            else:
+                msg_lines.append(f"{idx}. {name} - {score_text} - {status}.")
+    if msg_lines:
+        msg = "\n".join(msg_lines)
+    else:
+        msg = "Mình đã xếp hạng ứng viên theo job này."
+
+    msg = msg_keep
+    top5 = answer.get("top5") or []
+    msg_lines = []
+    if top5:
+        msg_lines.append("Mình đã xếp hạng ứng viên theo dữ liệu hiện có. Top phù hợp nhất:")
+        for idx, item in enumerate(top5, start=1):
+            cid = clean_text(item.get("candidate_id") or "")
+            cm = cand_map.get(cid) or {}
+            name = candidate_display_name(cm) if cm else ""
+            if not name:
+                short_id = cid[:6] if cid else "n/a"
+                name = f"Ứng viên {short_id}"
+            try:
+                score_pct = float(item.get("score", 0)) * 100
+            except Exception:
+                score_pct = 0.0
+            score_text = f"{score_pct:.1f}"
+            if score_text.endswith(".0"):
+                score_text = score_text[:-2]
+            status = "Đạt" if item.get("passed") else "Chưa đạt"
+            why = clean_text(item.get("why") or "")
+            if why:
+                msg_lines.append(f"{idx}. {name} - {score_text}% ({status}). {why}")
+            else:
+                msg_lines.append(f"{idx}. {name} - {score_text}% ({status}).")
+    else:
+        msg_lines.append("Mình đã xếp hạng ứng viên theo job này.")
+    msg = "\n".join(msg_lines)
+    preface = clean_text(preface)
+    if preface:
+        msg = f"{preface}\n{msg}".strip() if msg else preface
     rag_service.append_message(session_id, "assistant", msg)
 
     ui = rag_service.build_ui_fit_charts(fit, job_meta, cand_meta)
@@ -1201,7 +1624,7 @@ def handle_candidate_roadmap(candidate_id: str, question: str, session_id: str, 
     rag_service.append_message(session_id, "user", question)
 
     # Optional LLM-friendly short intro (still grounded in fit)
-    intro = f"Mình tạo lộ trình 14 ngày dựa trên những kỹ năng bạn đang thiếu cho job **{job_meta.get('job_title')}**. Ưu tiên thiếu critical trước." 
+    intro = f"Mình tạo lộ trình 14 ngày dựa trên những kỹ năng bạn đang thiếu cho job **{job_meta.get('job_title')}**. Ưu tiên thiếu kỹ năng bắt buộc trước."
     intro = build_empathy_message(
         question=question,
         job_meta=job_meta,
@@ -1211,7 +1634,21 @@ def handle_candidate_roadmap(candidate_id: str, question: str, session_id: str, 
         history=history,
         fallback=intro,
     )
-    rag_service.append_message(session_id, "assistant", intro)
+    plan_lines = []
+    for item in plan:
+        day = item.get("day")
+        focus = clean_text(item.get("focus"))
+        task = clean_text(item.get("task"))
+        label = f"Ngày {day}" if day else "Ngày"
+        if focus:
+            label = f"{label} - {focus}"
+        if task:
+            plan_lines.append(f"{label}: {task}")
+        else:
+            plan_lines.append(label)
+    plan_text = "\n".join(plan_lines).strip()
+    msg = f"{intro}\n{plan_text}".strip() if plan_text else intro
+    rag_service.append_message(session_id, "assistant", msg)
 
     return api_ok(
         {
@@ -1224,7 +1661,7 @@ def handle_candidate_roadmap(candidate_id: str, question: str, session_id: str, 
             },
             "state": session_to_state(rag_service.get_session(session_id) or {}, 20),
         },
-        message=intro,
+        message=msg,
     )
 
 
@@ -1291,6 +1728,7 @@ def handle_recruiter_rank(
     session_id: str,
     ttl_minutes: int,
     recruiter_user_id: Optional[str] = None,
+    preface: str = "",
 ):
     sess = rag_service.get_session(session_id) if session_id else None
     if not sess:
@@ -1356,7 +1794,40 @@ def handle_recruiter_rank(
     if not isinstance(answer.get("notes"), list):
         answer["notes"] = []
     msg = "Mình đã xếp hạng ứng viên theo job này."
+    preface = clean_text(preface)
+    if preface:
+        msg = f"{preface}\n{msg}".strip()
 
+    top5 = answer.get("top5") or []
+    msg_lines = []
+    if top5:
+        msg_lines.append("Mình đã xếp hạng ứng viên theo dữ liệu hiện có. Top phù hợp nhất:")
+        for idx, item in enumerate(top5, start=1):
+            cid = clean_text(item.get("candidate_id") or "")
+            cm = cand_map.get(cid) or {}
+            name = candidate_display_name(cm) if cm else ""
+            if not name:
+                short_id = cid[:6] if cid else "n/a"
+                name = f"Ứng viên {short_id}"
+            try:
+                score_pct = float(item.get("score", 0)) * 100
+            except Exception:
+                score_pct = 0.0
+            score_text = f"{score_pct:.1f}"
+            if score_text.endswith(".0"):
+                score_text = score_text[:-2]
+            status = "Đạt" if item.get("passed") else "Chưa đạt"
+            why = clean_text(item.get("why") or "")
+            if why:
+                msg_lines.append(f"{idx}. {name} - {score_text}% ({status}). {why}")
+            else:
+                msg_lines.append(f"{idx}. {name} - {score_text}% ({status}).")
+    else:
+        msg_lines.append("Mình đã xếp hạng ứng viên theo job này.")
+    msg = "\n".join(msg_lines)
+    preface = clean_text(preface)
+    if preface:
+        msg = f"{preface}\n{msg}".strip()
     rag_service.update_session_payload(session_id, {"last_ranked": ranked[:50]})
     rag_service.append_message(session_id, "assistant", msg)
 
@@ -1628,16 +2099,37 @@ def candidate_chat_general():
         return handle_candidate_profile_review(candidate_id, question, session_id)
 
     if it == "PROFILE_TO_JOBS":
-        return handle_candidate_profile_to_jobs(candidate_id, question, session_id)
+        preface = None
+        if intent.get("context_breaker"):
+            title = clean_text(payload.get("selected_job_title"))
+            if title:
+                preface = f"Được, mình tạm gác job **{title}** qua một bên. Dưới đây là các job khác phù hợp với bạn:"
+            else:
+                preface = "Được, mình sẽ tìm danh sách job khác phù hợp với bạn:"
+        return handle_candidate_profile_to_jobs(candidate_id, question, session_id, preface=preface)
 
     if it == "JOB_SEARCH":
-        return handle_candidate_job_search(candidate_id, question, session_id)
+        preface = None
+        if intent.get("context_breaker"):
+            title = clean_text(payload.get("selected_job_title"))
+            if title:
+                preface = f"Được, mình tạm gác job **{title}** qua một bên. Dưới đây là các job khác phù hợp với bạn:"
+            else:
+                preface = "Được, mình sẽ tìm danh sách job khác phù hợp với bạn:"
+        return handle_candidate_job_search(
+            candidate_id,
+            question,
+            session_id,
+            preface=preface,
+            context_breaker=bool(intent.get("context_breaker")),
+        )
 
     if it == "SELECT_JOB":
-        rag_service.append_message(session_id, "user", question)
         pick_index = intent.get("pick_index")
         sugs = payload.get("last_job_suggestions") or []
         auto_pick = bool(intent.get("auto_pick"))
+        t_norm = norm_basic(question)
+        ask_fit = bool(re.search(r"\b(diem|%|phu hop|fit|nhu the nao|ra sao|the nao|danh gia)\b", t_norm))
         if pick_index is None and auto_pick:
             if not sugs:
                 prefs = ChatPrefs.from_payload(payload)
@@ -1651,6 +2143,7 @@ def candidate_chat_general():
                 rag_service.update_session_payload(session_id, {"last_job_suggestions": sugs, "last_query": question})
             best_idx = pick_best_suggestion(candidate_id, sugs)
             if best_idx is None:
+                rag_service.append_message(session_id, "user", question)
                 msg = build_suggest_jobs_message(sugs, "profile")
                 rag_service.append_message(session_id, "assistant", msg)
                 return api_ok(
@@ -1663,31 +2156,136 @@ def candidate_chat_general():
                 )
             return handle_candidate_select_job(candidate_id, best_idx, session_id)
         if pick_index is None:
+            msg = "Số bạn chọn không hợp lệ. Hãy chọn lại (vd: 'chọn 1')."
+            rag_service.append_message(session_id, "user", question)
             if not sugs:
                 msg = "Bạn chưa có danh sách job để chọn. Gõ: 'tìm job ...' hoặc 'xem CV ...' trước nhé."
-            else:
-                msg = f"Bạn muốn chọn job số mấy? Gõ: 'chọn 1' đến 'chọn {len(sugs)}'."
+                rag_service.append_message(session_id, "assistant", msg)
+                return api_ok(
+                    {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                    message=msg,
+                )
+            msg = f"Bạn muốn chọn job số mấy? Gõ: 'chọn 1' đến 'chọn {len(sugs)}'."
             rag_service.append_message(session_id, "assistant", msg)
-            return api_err(msg, 400)
+            return api_ok(
+                {
+                    "view": "suggest_jobs",
+                    "result": {"suggestions": sugs, "from": "profile"},
+                    "state": session_to_state(rag_service.get_session(session_id) or {}, 20),
+                },
+                message=msg,
+            )
+            rag_service.append_message(session_id, "user", question)
+            if not sugs:
+                msg = "Bạn chưa có danh sách job để chọn. Gõ: 'tìm job ...' hoặc 'xem CV ...' trước nhé."
+                rag_service.append_message(session_id, "assistant", msg)
+                return api_ok(
+                    {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                    message=msg,
+                )
+            msg = f"Bạn muốn chọn job số mấy? Gõ: 'chọn 1' đến 'chọn {len(sugs)}'."
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_ok(
+                {
+                    "view": "suggest_jobs",
+                    "result": {"suggestions": sugs, "from": "profile"},
+                    "state": session_to_state(rag_service.get_session(session_id) or {}, 20),
+                },
+                message=msg,
+            )
         try:
             pick_index_int = int(pick_index)
         except Exception:
+            rag_service.append_message(session_id, "user", question)
             msg = "Số bạn chọn không hợp lệ. Bạn gõ lại kiểu: 'chọn 1' nhé."
             rag_service.append_message(session_id, "assistant", msg)
-            return api_err(msg, 400)
+            return api_ok(
+                {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                message=msg,
+            )
+            rag_service.append_message(session_id, "user", question)
+            msg = "Số bạn chọn không hợp lệ. Bạn gõ lại kiểu: 'chọn 1' nhé."
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_ok(
+                {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                message=msg,
+            )
         if pick_index_int < 0 or pick_index_int >= len(sugs):
+            rag_service.append_message(session_id, "user", question)
             if not sugs:
                 msg = "Bạn chưa có danh sách job để chọn. Gõ: 'tìm job ...' hoặc 'xem CV ...' trước nhé."
-            else:
-                msg = f"Số bạn chọn không hợp lệ. Hiện có {len(sugs)} job. Gõ: 'chọn 1' đến 'chọn {len(sugs)}'."
+                rag_service.append_message(session_id, "assistant", msg)
+                return api_ok(
+                    {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                    message=msg,
+                )
+            msg = f"Số bạn chọn không hợp lệ. Hiện có {len(sugs)} job. Gõ: 'chọn 1' đến 'chọn {len(sugs)}'."
             rag_service.append_message(session_id, "assistant", msg)
-            return api_err(msg, 400)
+            return api_ok(
+                {
+                    "view": "suggest_jobs",
+                    "result": {"suggestions": sugs, "from": "profile"},
+                    "state": session_to_state(rag_service.get_session(session_id) or {}, 20),
+                },
+                message=msg,
+            )
+            rag_service.append_message(session_id, "user", question)
+            if not sugs:
+                msg = "Bạn chưa có danh sách job để chọn. Gõ: 'tìm job ...' hoặc 'xem CV ...' trước nhé."
+                rag_service.append_message(session_id, "assistant", msg)
+                return api_ok(
+                    {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                    message=msg,
+                )
+            msg = f"Số bạn chọn không hợp lệ. Hiện có {len(sugs)} job. Gõ: 'chọn 1' đến 'chọn {len(sugs)}'."
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_ok(
+                {
+                    "view": "suggest_jobs",
+                    "result": {"suggestions": sugs, "from": "profile"},
+                    "state": session_to_state(rag_service.get_session(session_id) or {}, 20),
+                },
+                message=msg,
+            )
+        selection_only = bool(
+            re.fullmatch(r"(chon|job|viec|cong viec|cv)\s*[0-9]{1,2}", t_norm)
+            or re.fullmatch(r"[0-9]{1,2}", t_norm)
+        )
+        auto_fit = selection_only or bool(re.search(r"\b(thi sao|nhu the nao|ra sao)\b", t_norm))
+        if ask_fit or auto_fit:
+            selected = sugs[pick_index_int]
+            job_id = selected.get("job_id")
+            if not job_id:
+                rag_service.append_message(session_id, "user", question)
+                msg = "Job id không hợp lệ trong danh sách gợi ý."
+                rag_service.append_message(session_id, "assistant", msg)
+                return api_ok(
+                    {"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                    message=msg,
+                )
+                rag_service.append_message(session_id, "user", question)
+                msg = "Job id không hợp lệ trong danh sách gợi ý."
+                rag_service.append_message(session_id, "assistant", msg)
+                return api_err(msg, 500)
+            rag_service.update_session_payload(
+                session_id,
+                {
+                    "selected_job_id": job_id,
+                    "selected_job_title": selected.get("title") or "",
+                    "last_action": "SELECT_JOB",
+                },
+            )
+            title = selected.get("title") or ""
+            city = selected.get("city") or ""
+            city_text = f" tai {city}" if city else ""
+            preface = f"Ok, bạn đang quan tâm đến vị trí **{title}**{city_text}. Để mình so sánh CV của bạn với job này nhé."
+            return handle_candidate_job_fit(candidate_id, question, session_id, job_id=job_id, preface=preface)
+        rag_service.append_message(session_id, "user", question)
         return handle_candidate_select_job(candidate_id, pick_index_int, session_id)
-
     if it == "CHANGE_JOB":
         rag_service.update_session_payload(session_id, {"selected_job_id": None})
         rag_service.append_message(session_id, "user", question)
-        msg = "Ok, bạn muốn đổi job. Mình sẽ gợi ý lại — bạn nói tiêu chí nhé (role/city/remote)."
+        msg = "Được, mình tạm gác job hiện tại. Bạn nói tiêu chí mới nhé (vị trí/khu vực/remote)."
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
 
@@ -1843,7 +2441,19 @@ def recruiter_chat_general():
     payload = (sess or {}).get("payload") or {}
     if recruiter_user_id and not payload.get("recruiter_user_id"):
         payload["recruiter_user_id"] = recruiter_user_id
+    auto_rank = False
+    selected_title = ""
     if job_id:
+        if auto_rank and selected_title:
+            selection_preface = f"Ok, bạn đang quan tâm đến job **{selected_title}**{city_text}. Để mình xếp hạng ứng viên cho job này nhé."
+        if auto_rank and selected_title:
+            city = clean_text(selected.get("city") or "")
+            city_text = f" tại {city}" if city else ""
+            selection_preface = f"Ok, bạn đang quan tâm đến job **{selected_title}**{city_text}. Để mình xếp hạng ứng viên cho job này nhé."
+        if auto_rank and selected_title:
+            city = clean_text(selected.get("city") or "")
+            city_text = f" tại {city}" if city else ""
+            selection_preface = f"Ok, bạn đang quan tâm đến job **{selected_title}**{city_text}. Để mình xếp hạng ứng viên cho job này nhé."
         payload["job_id"] = job_id
     if candidate_ids:
         payload["candidate_ids"] = candidate_ids
@@ -1878,8 +2488,29 @@ def recruiter_chat_general():
     pick = parse_pick_index(question)
     if pick is None:
         pick = match_suggestion_index(question, last_jobs)
+    selection_preface = ""
+    t_norm = norm_basic(question)
+    num_only = re.fullmatch(r"\s*(\d{1,2})\s*", t_norm)
+    if pick is None and num_only and last_jobs:
+        try:
+            pick = int(num_only.group(1)) - 1
+        except Exception:
+            pick = None
 
     if pick is not None:
+        if pick < 0 or pick >= len(last_jobs):
+            msg = "Số bạn chọn không hợp lệ. Hãy chọn lại (vd: 'chọn 1')."
+            rag_service.append_message(session_id, "user", question)
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_err(msg, 400)
+        if False and (pick < 0 or pick >= len(last_jobs)):
+            msg = f"Số bạn chọn không hợp lệ. Hiện có {len(last_jobs)} job. Gõ: 'chọn 1' đến 'chọn {len(last_jobs)}'."
+            rag_service.append_message(session_id, "user", question)
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_ok(
+                {"view": "recruiter_jobs", "result": {"jobs": last_jobs}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+                message=msg,
+            )
         if pick < 0 or pick >= len(last_jobs):
             msg = "Số bạn chọn không hợp lệ. Hãy chọn lại (vd: 'chọn 1')."
             rag_service.append_message(session_id, "user", question)
@@ -1888,6 +2519,19 @@ def recruiter_chat_general():
         selected = last_jobs[pick]
         job_id = clean_text(selected.get("job_id"))
         selected_title = clean_text(selected.get("title") or selected.get("job_title") or "")
+        selection_only = bool(
+            re.fullmatch(r"(chon|job|viec|cong viec|cv)\\s*[0-9]{1,2}", t_norm)
+            or re.fullmatch(r"[0-9]{1,2}", t_norm)
+        )
+        auto_rank = selection_only or bool(re.search(r"\\b(thi sao|nhu the nao|ra sao)\\b", t_norm))
+        if auto_rank and selected_title:
+            city = clean_text(selected.get("city") or "")
+            city_text = f" tai {city}" if city else ""
+            selection_preface = f"Ok, bạn đang quan tâm đến job **{selected_title}**{city_text}. Để mình xếp hạng ứng viên cho job này nhé."
+        if auto_rank and selected_title:
+            city = clean_text(selected.get("city") or "")
+            city_text = f" tại {city}" if city else ""
+            selection_preface = f"Ok, bạn đang quan tâm đến job **{selected_title}**{city_text}. Để mình xếp hạng ứng viên cho job này nhé."
         payload["job_id"] = job_id
         payload["selected_job_title"] = selected_title
         rag_service.update_session_payload(session_id, {"job_id": job_id, "candidate_ids": [], "selected_job_title": selected_title})
@@ -1897,6 +2541,7 @@ def recruiter_chat_general():
     if not job_id:
         recruiter = get_recruiter_record_by_user(recruiter_user_id) if recruiter_user_id else None
         if not recruiter:
+            return api_err("Không tìm thấy hồ sơ nhà tuyển dụng.", 404)
             return api_err("Không tìm thấy hồ sơ nhà tuyển dụng", 404)
 
         job_limit = int(os.getenv("RECRUITER_JOB_LIMIT", "20"))
@@ -1935,6 +2580,18 @@ def recruiter_chat_general():
                 "Bạn muốn: (1) chọn job khác, (2) xem các job đang có ứng viên, "
                 "hoặc (3) gửi danh sách ứng viên nội bộ nếu có."
             )
+        if is_no_candidates_question(question):
+            msg = (
+                "Đúng rồi, hiện job này chưa có ứng viên ứng tuyển. "
+                "Bạn có thể chọn job khác hoặc xem các job đang có ứng viên."
+            )
+        else:
+            msg = (
+                "Job này chưa có ứng viên ứng tuyển. "
+                "Bạn có thể chọn job khác hoặc xem các job đang có ứng viên."
+            )
+        if selection_preface:
+            msg = f"{selection_preface}\\n{msg}".strip()
         rag_service.append_message(session_id, "user", question)
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok(
@@ -1953,7 +2610,7 @@ def recruiter_chat_general():
     it = (intent.get("intent") or "UNKNOWN").upper()
 
     if it == "GREETING":
-        msg = "Chao ban. Ban muon minh xep hang top ung vien, so sanh top1-top2, hay phan tich 1 ung vien cu the?"
+        msg = "Chào bạn. Bạn muốn mình xếp hạng top ứng viên, so sánh top1-top2, hay phân tích một ứng viên cụ thể?"
         rag_service.append_message(session_id, "user", question)
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "recruiter_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
@@ -1961,7 +2618,7 @@ def recruiter_chat_general():
     if it == "RESET":
         s = rag_service.start_session("recruiter", {"job_id": job_id, "candidate_ids": candidate_ids, "mode": "recruiter_general"}, ttl_minutes=ttl_minutes)
         session_id = s["session_id"]
-        msg = "Ok, da reset phien recruiter. Ban hoi tiep nhe."
+        msg = "Ok, đã reset phiên recruiter. Bạn hỏi tiếp nhé."
         rag_service.append_message(session_id, "user", question)
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "recruiter_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
@@ -1979,6 +2636,7 @@ def recruiter_chat_general():
         session_id,
         ttl_minutes,
         recruiter_user_id=recruiter_user_id,
+        preface=selection_preface,
     )
 
 
@@ -2004,4 +2662,7 @@ def stream_chat():
             yield f"data: {tok}\n\n"
         yield "data: [DONE]\n\n"
     return Response(gen(), mimetype="text/event-stream")
+
+
+
 
