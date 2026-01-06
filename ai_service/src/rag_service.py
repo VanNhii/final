@@ -14,7 +14,6 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 
 from sentence_transformers import SentenceTransformer
-
 # Optional cross-encoder reranker (adds "wow" factor for judge). If unavailable, we fall back to embedding rerank.
 try:
     from sentence_transformers import CrossEncoder  # type: ignore
@@ -26,6 +25,7 @@ from .facts_layer import (
     clean_text,
     now_utc,
     norm_basic,
+    fingerprint_text,
 )
 from .chat_prefs import ChatPrefs
 
@@ -157,40 +157,93 @@ class RAGService:
         payload.update(patch or {})
         self.sessions_col.update_one({"session_id": session_id}, {"$set": {"payload": payload}})
 
-    def append_message(self, session_id: str, role: str, content: str) -> None:
-        if not session_id:
-            return
-        clean_content = clean_text(content)
+    def append_message(self, session_id: str, role: str, content: str, meta: Optional[Dict[str, Any]] = None) -> bool:
+        """
+        Append a chat message into:
+        - sessions_col.messages (for the active session)
+        - rag_history (owner_id + kind) for cross-session memory
+
+        Anti-repeat: if the last message in the session has the same role + same normalized content,
+        it will NOT be appended again. Returns True if appended, False if skipped.
+        """
+        role = (role or "").strip().lower()
+        if role not in ("user", "assistant", "system"):
+            role = "user"
+
+        content_clean = clean_text(content)
+        if not content_clean:
+            return False
+
+        # normalize for dedupe (strip extra whitespace + lower)
+        fp = fingerprint_text(content_clean)
+
+        # Check last message (fast slice projection)
+        try:
+            last = self.sessions_col.find_one({"session_id": session_id}, {"messages": {"$slice": -1}})
+            if last and (last.get("messages") or []):
+                lm = (last["messages"] or [{}])[-1]
+                if (lm.get("role") or "").lower() == role:
+                    last_fp = lm.get("fp") or fingerprint_text(clean_text(lm.get("content") or ""))
+                    if last_fp == fp:
+                        return False
+        except Exception:
+            # never block chat on dedupe failures
+            pass
+
         now = now_utc()
+        msg_doc = {
+            "at": now,
+            "role": role,
+            "content": content_clean,
+            "fp": fp,
+        }
+        if meta and isinstance(meta, dict):
+            msg_doc["meta"] = meta
+
+        # Cap session messages
+        try:
+            max_msgs = int(os.getenv("CHAT_SESSION_MAX_MESSAGES", "200"))
+        except Exception:
+            max_msgs = 200
+        max_msgs = max(50, min(max_msgs, 2000))
+
         self.sessions_col.update_one(
             {"session_id": session_id},
-            {"$push": {"messages": {"at": now, "role": role, "content": clean_content}}},
-        )
-        sess = self.sessions_col.find_one({"session_id": session_id}, {"payload": 1, "kind": 1})
-        if not sess:
-            return
-        payload = sess.get("payload") or {}
-        owner_id = clean_text(payload.get("candidate_id") or payload.get("recruiter_user_id") or "")
-        kind = clean_text(sess.get("kind"))
-        if not owner_id or not kind:
-            return
-        max_messages = int(os.getenv("CHAT_HISTORY_BUCKET_MAX_MESSAGES", "500"))
-        message_doc = {"role": role, "content": clean_content, "at": now}
-        update = {
-            "$setOnInsert": {"created_at": now},
-            "$set": {"updated_at": now},
-            "$inc": {"message_count": 1},
-        }
-        if max_messages > 0:
-            update["$push"] = {"messages": {"$each": [message_doc], "$slice": -max_messages}}
-        else:
-            update["$push"] = {"messages": message_doc}
-        self.history_col.update_one(
-            {"owner_id": owner_id, "kind": kind, "session_id": session_id},
-            update,
-            upsert=True,
+            {
+                "$push": {"messages": {"$each": [msg_doc], "$slice": -max_msgs}},
+                "$set": {"updated_at": now},
+            },
         )
 
+        # If we know owner_id + kind, also write to rag_history
+        sess = self.sessions_col.find_one({"session_id": session_id}, {"payload": 1, "kind": 1})
+        if sess:
+            payload = sess.get("payload") or {}
+            kind = sess.get("kind") or payload.get("kind") or payload.get("mode") or ""
+            if kind in ("candidate", "recruiter"):
+                if kind == "candidate":
+                    owner_id = payload.get("candidate_id")
+                else:
+                    owner_id = payload.get("recruiter_user_id") or payload.get("recruiter_id") or payload.get("user_id")
+                owner_id = clean_text(owner_id)
+                if owner_id:
+                    # cap history too
+                    try:
+                        max_hist = int(os.getenv("CHAT_HISTORY_MAX_MESSAGES", "600"))
+                    except Exception:
+                        max_hist = 600
+                    max_hist = max(100, min(max_hist, 5000))
+
+                    self.history_col.update_one(
+                        {"owner_id": owner_id, "kind": kind},
+                        {
+                            "$setOnInsert": {"owner_id": owner_id, "kind": kind, "created_at": now},
+                            "$push": {"messages": {"$each": [msg_doc], "$slice": -max_hist}},
+                            "$set": {"updated_at": now},
+                        },
+                        upsert=True,
+                    )
+        return True
     def get_history_messages(self, owner_id: str, kind: str, limit: int = 20) -> List[Dict[str, Any]]:
         owner_id = clean_text(owner_id)
         kind = clean_text(kind)

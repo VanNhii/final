@@ -113,6 +113,21 @@ def is_confirm(text: str) -> bool:
     return False
 
 
+def is_ack(text: str) -> bool:
+    q = norm_basic(text)
+    if not q:
+        return False
+    # short acknowledgements
+    if q in {"ok", "okay", "oke", "okie", "uk", "k", "kk", "roi", "duoc", "dc", "u", "da", "dạ", "da roi", "vang", "vâng", "uh", "um"}:
+        return True
+    if len(q.split()) <= 2 and q in {"ok", "oke", "okay", "roi", "duoc", "dc", "da", "vang", "vâng"}:
+        return True
+    # "ok vậy", "ok r"
+    if q.startswith("ok ") or q.startswith("oke ") or q.startswith("okay "):
+        return True
+    return False
+
+
 def fuzzy_role_match(text: str) -> bool:
     t = norm_basic(text)
     if not t:
@@ -424,6 +439,12 @@ def route_candidate_intent(question: str, payload: dict, llm: Optional[LLMServic
     if is_goodbye(q):
         return {"intent": "GOODBYE", "confidence": 1.0}
 
+    if is_ack(q):
+        # If we just suggested jobs and user replies 'ok', auto-pick the best one.
+        if (payload.get("last_job_suggestions") or []) and not payload.get("selected_job_id"):
+            return {"intent": "SELECT_JOB", "auto_pick": True, "confidence": 0.9}
+        return {"intent": "ACK", "confidence": 0.8}
+
     is_screen = bool(re.search(r"\b(liet ke|danh sach|loc|sang loc|filter)\b", t) and re.search(r"\b(ung vien|candidate)\b", t))
     is_compare = bool(re.search(r"\b(so sanh|compare|vs|head to head)\b", t) and re.search(r"\b(ung vien|candidate)\b", t))
     is_interview = bool(re.search(r"\b(cau hoi phong van|phong van|interview)\b", t))
@@ -570,6 +591,15 @@ def route_recruiter_intent(question: str, payload: dict, llm: Optional[LLMServic
         return {"intent": "THANKS", "confidence": 1.0}
     if is_goodbye(q):
         return {"intent": "GOODBYE", "confidence": 1.0}
+
+    if is_ack(q):
+        return {"intent": "ACK", "confidence": 0.8}
+
+    if is_ack(q):
+        # If we just suggested jobs and user replies 'ok', auto-pick the best one.
+        if (payload.get("last_job_suggestions") or []) and not payload.get("selected_job_id"):
+            return {"intent": "SELECT_JOB", "auto_pick": True, "confidence": 0.9}
+        return {"intent": "ACK", "confidence": 0.8}
 
     # if recruiter has job_id + candidate_ids in payload, default to ranking/compare
     job_id = payload.get("job_id")

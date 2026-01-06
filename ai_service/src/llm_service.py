@@ -11,26 +11,86 @@ import requests
 from .facts_layer import clean_text
 
 
-def _try_parse_json(s: str) -> Optional[Dict[str, Any]]:
-    s = clean_text(s)
-    if not s:
+def _strip_code_fences(text: str) -> str:
+    t = text.strip()
+    # ```json ... ```
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z0-9_-]*\s*", "", t)
+        t = re.sub(r"\s*```$", "", t)
+    return t.strip()
+
+
+def _extract_json_snippet_balanced(text: str) -> Optional[str]:
+    """
+    Extract the first balanced JSON object/array from arbitrary text.
+    Works for common LLM outputs that include leading/trailing prose.
+    """
+    t = _strip_code_fences(text)
+    if not t:
         return None
-    # strip code fences
-    s = re.sub(r"^```(?:json)?\s*", "", s)
-    s = re.sub(r"\s*```$", "", s)
-    # find first {...}
-    m = re.search(r"\{.*\}", s, flags=re.S)
-    if m:
-        s = m.group(0)
-    try:
-        obj = json.loads(s)
-        if isinstance(obj, dict):
-            return obj
-    except Exception:
+
+    # Prefer object
+    starts = [(t.find("{"), "{"), (t.find("["), "[")]
+    starts = [(i, ch) for i, ch in starts if i != -1]
+    if not starts:
         return None
+    start_idx, start_ch = min(starts, key=lambda x: x[0])
+    end_ch = "}" if start_ch == "{" else "]"
+
+    depth = 0
+    in_str = False
+    esc = False
+    for i in range(start_idx, len(t)):
+        c = t[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif c == "\\":
+                esc = True
+            elif c == '"':
+                in_str = False
+            continue
+        else:
+            if c == '"':
+                in_str = True
+                continue
+            if c == start_ch:
+                depth += 1
+            elif c == end_ch:
+                depth -= 1
+                if depth == 0:
+                    return t[start_idx : i + 1]
     return None
 
 
+def _repair_json_text(snippet: str) -> str:
+    # common repairs: trailing commas
+    s = snippet.strip()
+    s = re.sub(r",\s*([}\]])", r"\1", s)
+    return s
+
+
+def _try_parse_json(text: str) -> Optional[Any]:
+    if not text or not isinstance(text, str):
+        return None
+    t = _strip_code_fences(text)
+
+    # Direct parse
+    try:
+        return json.loads(t)
+    except Exception:
+        pass
+
+    snippet = _extract_json_snippet_balanced(t)
+    if not snippet:
+        return None
+
+    for cand in (snippet, _repair_json_text(snippet)):
+        try:
+            return json.loads(cand)
+        except Exception:
+            continue
+    return None
 class LLMService:
     """
     Ollama chat wrapper.

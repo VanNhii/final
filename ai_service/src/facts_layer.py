@@ -444,3 +444,17 @@ def normalize_skill_list(xs: Iterable[str]) -> List[str]:
         if n:
             out.append(n)
     return sorted(list(set(out)))
+
+
+import hashlib
+
+def fingerprint_text(text: str) -> str:
+    '''
+    Create a stable short fingerprint for deduping chat messages.
+    - uses norm_basic() so OK/ok/extra spaces won't duplicate
+    '''
+    t = norm_basic(text or "")
+    if not t:
+        return ""
+    h = hashlib.sha1(t.encode("utf-8")).hexdigest()
+    return h[:16]
