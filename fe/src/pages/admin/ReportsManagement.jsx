@@ -28,15 +28,15 @@ const ReportsManagement = () => {
     try {
       setLoading(true);
       const params = {};
-      
+
       // Add filters to params
       if (filters.status) params.status = filters.status;
       if (filters.priority) params.priority = filters.priority;
       if (filters.type) params.type = filters.type;
       if (filters.search) params.search = filters.search;
-      
+
       const response = await adminService.getReports(params);
-      
+
       if (response.data) {
         const reportsData = response.data || [];
         setReports(reportsData);
@@ -57,32 +57,32 @@ const ReportsManagement = () => {
   const handleStatusChange = async (reportId, newStatus, notes = '') => {
     try {
       setActionLoading(prev => ({ ...prev, [reportId]: true }));
-      
+
       const response = await adminService.updateReportStatus(reportId, {
         status: newStatus,
         admin_notes: notes
       });
-      
+
       if (response && response.success) {
         // Update local state
-        setReports(reports.map(report => 
+        setReports(reports.map(report =>
           report._id === reportId || report.id === reportId
-            ? { 
-                ...report, 
-                status: newStatus,
-                resolved_at: newStatus === 'resolved' ? new Date().toISOString() : null,
-                admin_notes: notes || report.admin_notes
-              } 
+            ? {
+              ...report,
+              status: newStatus,
+              resolved_at: newStatus === 'resolved' ? new Date().toISOString() : null,
+              admin_notes: notes || report.admin_notes
+            }
             : report
         ));
-        
+
         const statusLabels = {
           pending: 'chờ xử lý',
           investigating: 'đang điều tra',
           resolved: 'đã giải quyết',
           dismissed: 'đã bác bỏ'
         };
-        
+
         toast.success(`Đã cập nhật báo cáo thành ${statusLabels[newStatus]}`);
       } else {
         throw new Error('Failed to update report status');
@@ -104,8 +104,8 @@ const ReportsManagement = () => {
   };
 
   const handleSelectReport = (reportId) => {
-    setSelectedReports(prev => 
-      prev.includes(reportId) 
+    setSelectedReports(prev =>
+      prev.includes(reportId)
         ? prev.filter(id => id !== reportId)
         : [...prev, reportId]
     );
@@ -113,8 +113,8 @@ const ReportsManagement = () => {
 
   const handleSelectAll = () => {
     setSelectedReports(
-      selectedReports.length === reports.length 
-        ? [] 
+      selectedReports.length === reports.length
+        ? []
         : reports.map(report => report._id || report.id)
     );
   };
@@ -122,7 +122,7 @@ const ReportsManagement = () => {
   const handleExportReports = async () => {
     try {
       const reportDate = new Date().toLocaleDateString('vi-VN');
-      
+
       // Summary section
       const summaryHeaders = ['Thông tin báo cáo', 'Giá trị'];
       const summaryRows = [
@@ -133,7 +133,7 @@ const ReportsManagement = () => {
         ['Đã giải quyết', reports.filter(r => r.status === 'resolved').length],
         ['Đã bác bỏ', reports.filter(r => r.status === 'dismissed').length]
       ];
-      
+
       // Details section
       const headers = ['STT', 'Tiêu đề', 'Loại vi phạm', 'Mức độ', 'Người báo cáo', 'Đối tượng bị báo cáo', 'Trạng thái', 'Ngày tạo'];
       const rows = reports.map((report, index) => {
@@ -143,32 +143,32 @@ const ReportsManagement = () => {
           index + 1,
           report.reason || '',
           (report.type || report.report_type) === 'job_content' ? 'Nội dung việc làm' :
-          (report.type || report.report_type) === 'spam' ? 'Spam' :
-          (report.type || report.report_type) === 'harassment' ? 'Quấy rối' :
-          (report.type || report.report_type) === 'fraud' ? 'Lừa đảo' : 'Khác',
+            (report.type || report.report_type) === 'spam' ? 'Spam' :
+              (report.type || report.report_type) === 'harassment' ? 'Quấy rối' :
+                (report.type || report.report_type) === 'fraud' ? 'Lừa đảo' : 'Khác',
           report.priority === 'urgent' ? 'Khẩn cấp' :
-          report.priority === 'high' ? 'Cao' :
-          report.priority === 'medium' ? 'Trung bình' : 'Thấp',
+            report.priority === 'high' ? 'Cao' :
+              report.priority === 'medium' ? 'Trung bình' : 'Thấp',
           reporterInfo.name,
           reportedUserInfo.name,
           report.status === 'pending' ? 'Chờ xử lý' :
-          report.status === 'investigating' ? 'Đang điều tra' :
-          report.status === 'resolved' ? 'Đã giải quyết' : 'Đã bác bỏ',
+            report.status === 'investigating' ? 'Đang điều tra' :
+              report.status === 'resolved' ? 'Đã giải quyết' : 'Đã bác bỏ',
           formatDate(report.created_at)
         ];
       });
-      
+
       const BOM = '\uFEFF';
-      const csvContent = BOM + 
+      const csvContent = BOM +
         'BÁO CÁO VI PHẠM\n\n' +
-        [summaryHeaders, ...summaryRows].map(row => 
+        [summaryHeaders, ...summaryRows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n') +
         '\n\nCHI TIẾT BÁO CÁO\n' +
-        [headers, ...rows].map(row => 
+        [headers, ...rows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -206,7 +206,7 @@ const ReportsManagement = () => {
         other: reports.filter(r => (r.type || r.report_type) === 'other').length
       }
     };
-    
+
     toast.info(`Thống kê vi phạm:\n- Tổng: ${stats.total}\n- Chờ xử lý: ${stats.byStatus.pending}\n- Đang điều tra: ${stats.byStatus.investigating}\n- Đã giải quyết: ${stats.byStatus.resolved}`, {
       autoClose: 5000
     });
@@ -228,13 +228,13 @@ const ReportsManagement = () => {
 
     try {
       setActionLoading(prev => ({ ...prev, bulk: true }));
-      
-      const promises = selectedReports.map(reportId => 
+
+      const promises = selectedReports.map(reportId =>
         adminService.updateReportStatus(reportId, { status: newStatus })
       );
 
       await Promise.all(promises);
-      
+
       setReports(reports.map(report => {
         const reportId = getReportId(report);
         if (selectedReports.includes(reportId)) {
@@ -265,7 +265,7 @@ const ReportsManagement = () => {
     }
     return report.reporter || {
       name: 'N/A',
-      email: 'N/A', 
+      email: 'N/A',
       role: 'user'
     };
   };
@@ -274,7 +274,7 @@ const ReportsManagement = () => {
     // Handle new structure with reported_entity_id
     if (report.reported_entity_id && typeof report.reported_entity_id === 'object') {
       const entity = report.reported_entity_id;
-      
+
       if (report.reported_entity_type === 'Job') {
         return {
           id: entity._id,
@@ -284,7 +284,7 @@ const ReportsManagement = () => {
           role: 'job'
         };
       }
-      
+
       if (report.reported_entity_type === 'User' || !report.reported_entity_type) {
         return {
           id: entity._id,
@@ -294,7 +294,7 @@ const ReportsManagement = () => {
           role: entity.role || 'user'
         };
       }
-      
+
       return {
         id: entity._id,
         type: report.reported_entity_type.toLowerCase(),
@@ -314,7 +314,7 @@ const ReportsManagement = () => {
         role: report.reported_user_id.role || 'user'
       };
     }
-    
+
     return {
       id: report.reported_entity_id,
       type: (report.reported_entity_type || 'user').toLowerCase(),
@@ -341,7 +341,7 @@ const ReportsManagement = () => {
       resolved: 'bg-green-100 text-green-800',
       dismissed: 'bg-gray-100 text-gray-800'
     };
-    
+
     const labels = {
       pending: 'Chờ xử lý',
       investigating: 'Đang điều tra',
@@ -363,7 +363,7 @@ const ReportsManagement = () => {
       high: 'bg-red-100 text-red-800',
       urgent: 'bg-purple-100 text-purple-800'
     };
-    
+
     const labels = {
       low: 'Thấp',
       medium: 'Trung bình',
@@ -386,7 +386,7 @@ const ReportsManagement = () => {
       fraud: 'bg-purple-100 text-purple-800',
       other: 'bg-gray-100 text-gray-800'
     };
-    
+
     const labels = {
       job_content: 'Nội dung việc làm',
       spam: 'Spam',
@@ -430,13 +430,13 @@ const ReportsManagement = () => {
           <p className="mt-1 text-gray-600">Xử lý các báo cáo vi phạm từ người dùng</p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <button 
+          <button
             onClick={handleExportReports}
             className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
           >
             Xuất báo cáo
           </button>
-          <button 
+          <button
             onClick={handleShowStats}
             className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
           >
@@ -460,7 +460,7 @@ const ReportsManagement = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Trạng thái
@@ -570,14 +570,14 @@ const ReportsManagement = () => {
                   Đã chọn {selectedReports.length} báo cáo
                 </span>
                 <div className="flex space-x-2">
-                  <button 
+                  <button
                     onClick={() => handleBulkStatusChange('investigating')}
                     disabled={actionLoading.bulk}
                     className="text-blue-600 hover:text-blue-700 text-sm font-medium disabled:opacity-50"
                   >
                     {actionLoading.bulk ? 'Đang xử lý...' : 'Đánh dấu đang xử lý'}
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleBulkStatusChange('resolved')}
                     disabled={actionLoading.bulk}
                     className="text-green-600 hover:text-green-700 text-sm font-medium disabled:opacity-50"
@@ -630,7 +630,7 @@ const ReportsManagement = () => {
                   const isActionLoading = actionLoading[reportId];
                   const reporterInfo = getReporterInfo(report);
                   const reportedUserInfo = getReportedUserInfo(report);
-                  
+
                   return (
                     <tr key={reportId} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -671,9 +671,9 @@ const ReportsManagement = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">
                           {reportedUserInfo.type === 'job' && reportedUserInfo.id ? (
-                            <Link 
-                              to={`/jobs/${reportedUserInfo.id}`} 
-                              target="_blank" 
+                            <Link
+                              to={`/jobs/${reportedUserInfo.id}`}
+                              target="_blank"
                               className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
                             >
                               {reportedUserInfo.name}
@@ -715,7 +715,7 @@ const ReportsManagement = () => {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                             </svg>
                           </button>
-                          
+
                           {report.status === 'pending' && (
                             <>
                               {/* Điều tra */}
@@ -756,7 +756,7 @@ const ReportsManagement = () => {
                               </button>
                             </>
                           )}
-                          
+
                           {report.status === 'investigating' && (
                             <>
                               {/* Giải quyết */}
@@ -797,7 +797,7 @@ const ReportsManagement = () => {
                               </button>
                             </>
                           )}
-                          
+
                           {(report.status === 'resolved' || report.status === 'dismissed') && (
                             <button
                               onClick={() => handleStatusChange(reportId, 'investigating')}
@@ -847,7 +847,7 @@ const ReportsManagement = () => {
               const isActionLoading = actionLoading[reportId];
               const reporterInfo = getReporterInfo(report);
               const reportedUserInfo = getReportedUserInfo(report);
-              
+
               return (
                 <div key={reportId} className="border-b border-gray-200 p-4 hover:bg-gray-50">
                   <div className="flex items-start justify-between mb-3">
@@ -893,9 +893,9 @@ const ReportsManagement = () => {
                       <div className="text-gray-500">Bị báo cáo:</div>
                       <div className="font-medium">
                         {reportedUserInfo.type === 'job' && reportedUserInfo.id ? (
-                          <Link 
-                            to={`/jobs/${reportedUserInfo.id}`} 
-                            target="_blank" 
+                          <Link
+                            to={`/jobs/${reportedUserInfo.id}`}
+                            target="_blank"
                             className="text-blue-600 hover:underline"
                           >
                             {reportedUserInfo.name}
@@ -927,7 +927,7 @@ const ReportsManagement = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
                       </button>
-                      
+
                       {report.status === 'pending' && (
                         <>
                           <button
@@ -966,7 +966,7 @@ const ReportsManagement = () => {
                           </button>
                         </>
                       )}
-                      
+
                       {report.status === 'investigating' && (
                         <>
                           <button
@@ -1005,7 +1005,7 @@ const ReportsManagement = () => {
                           </button>
                         </>
                       )}
-                      
+
                       {(report.status === 'resolved' || report.status === 'dismissed') && (
                         <button
                           onClick={() => handleStatusChange(reportId, 'investigating')}
@@ -1088,7 +1088,7 @@ const ReportsManagement = () => {
       {/* Report Detail Modal */}
       {showReportModal && selectedReport && (
         <div className="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm" aria-hidden="true" onClick={() => setShowReportModal(false)}></div>
+          <div className="fixed inset-0 bg-white/30 backdrop-blur-sm transition-opacity" aria-hidden="true" onClick={() => setShowReportModal(false)}></div>
 
           <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
             <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
@@ -1105,7 +1105,7 @@ const ReportsManagement = () => {
                       </svg>
                     </button>
                   </div>
-            
+
                   <div className="space-y-6">
                     {/* Report Header */}
                     <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
@@ -1119,7 +1119,7 @@ const ReportsManagement = () => {
                           {getPriorityBadge(selectedReport.priority)}
                         </div>
                       </div>
-                      
+
                       <div className="mt-4 flex items-center space-x-2 text-sm">
                         <span className="font-medium text-gray-700">Loại vi phạm:</span>
                         {getTypeBadge(selectedReport.type || selectedReport.report_type)}
@@ -1160,11 +1160,11 @@ const ReportsManagement = () => {
                         </h4>
                         <div className="space-y-2 text-sm">
                           <p>
-                            <span className="text-red-700 font-medium w-16 inline-block">Tên:</span> 
+                            <span className="text-red-700 font-medium w-16 inline-block">Tên:</span>
                             {getReportedUserInfo(selectedReport).type === 'job' && getReportedUserInfo(selectedReport).id ? (
-                              <Link 
-                                to={`/jobs/${getReportedUserInfo(selectedReport).id}`} 
-                                target="_blank" 
+                              <Link
+                                to={`/jobs/${getReportedUserInfo(selectedReport).id}`}
+                                target="_blank"
                                 className="text-blue-600 hover:underline"
                               >
                                 {getReportedUserInfo(selectedReport).name}
@@ -1226,7 +1226,7 @@ const ReportsManagement = () => {
                         </div>
                       </div>
                     )}
-                    
+
                     {/* Admin Notes */}
                     {selectedReport.admin_notes && (
                       <div>

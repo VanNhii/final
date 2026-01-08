@@ -11,9 +11,9 @@ const CandidateProfile = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const { user } = useSelector((state) => state.auth);
-  
+
   const [profile, setProfile] = useState(null);
-  
+
   // Modal states
   const [showExperienceModal, setShowExperienceModal] = useState(false);
   const [showEducationModal, setShowEducationModal] = useState(false);
@@ -82,16 +82,16 @@ const CandidateProfile = () => {
     try {
       setUploadingAvatar(true);
       const response = await uploadService.uploadAvatar(file);
-      
+
       if (response.success && response.data) {
         // Backend returns file_url like: /uploads/profile_avatar/filename.jpg
         const avatarUrl = response.data.file_url;
-        
+
         // Update profile with new avatar URL
         await candidateService.updateUserProfile(profile.user_id._id, {
           avatar_url: avatarUrl
         });
-        
+
         // Update local state
         setProfile(prev => ({
           ...prev,
@@ -131,7 +131,7 @@ const CandidateProfile = () => {
   };
 
   const handleEditExperience = (exp) => {
-    setEditingExperience({...exp});
+    setEditingExperience({ ...exp });
     setShowExperienceModal(true);
   };
 
@@ -146,7 +146,7 @@ const CandidateProfile = () => {
       let updatedExperience;
       if (editingExperience._id) {
         // Edit existing
-        updatedExperience = profile.experience.map(exp => 
+        updatedExperience = profile.experience.map(exp =>
           exp._id === editingExperience._id ? editingExperience : exp
         );
       } else {
@@ -154,10 +154,10 @@ const CandidateProfile = () => {
         const { _id, ...newExperience } = editingExperience;
         updatedExperience = [...(profile.experience || []), newExperience];
       }
-      
+
       const updatedProfile = { ...profile, experience: updatedExperience };
       const response = await candidateService.updateCandidateProfile(updatedProfile);
-      
+
       if (response.success) {
         setProfile(response.data);
         setShowExperienceModal(false);
@@ -178,9 +178,9 @@ const CandidateProfile = () => {
         setSaving(true);
         const updatedExperience = profile.experience.filter(exp => exp._id !== expId);
         const updatedProfile = { ...profile, experience: updatedExperience };
-        
+
         const response = await candidateService.updateCandidateProfile(updatedProfile);
-        
+
         if (response.success) {
           setProfile(response.data);
           toast.success('Đã xóa kinh nghiệm');
@@ -210,7 +210,7 @@ const CandidateProfile = () => {
   };
 
   const handleEditEducation = (edu) => {
-    setEditingEducation({...edu});
+    setEditingEducation({ ...edu });
     setShowEducationModal(true);
   };
 
@@ -225,7 +225,7 @@ const CandidateProfile = () => {
       let updatedEducation;
       if (editingEducation._id) {
         // Edit existing
-        updatedEducation = profile.education.map(edu => 
+        updatedEducation = profile.education.map(edu =>
           edu._id === editingEducation._id ? editingEducation : edu
         );
       } else {
@@ -233,10 +233,10 @@ const CandidateProfile = () => {
         const { _id, ...newEducation } = editingEducation;
         updatedEducation = [...(profile.education || []), newEducation];
       }
-      
+
       const updatedProfile = { ...profile, education: updatedEducation };
       const response = await candidateService.updateCandidateProfile(updatedProfile);
-      
+
       if (response.success) {
         setProfile(response.data);
         setShowEducationModal(false);
@@ -257,9 +257,9 @@ const CandidateProfile = () => {
         setSaving(true);
         const updatedEducation = profile.education.filter(edu => edu._id !== eduId);
         const updatedProfile = { ...profile, education: updatedEducation };
-        
+
         const response = await candidateService.updateCandidateProfile(updatedProfile);
-        
+
         if (response.success) {
           setProfile(response.data);
           toast.success('Đã xóa học vấn');
@@ -285,7 +285,7 @@ const CandidateProfile = () => {
   };
 
   const handleEditSkill = (skill, index) => {
-    setEditingSkill({...skill, index});
+    setEditingSkill({ ...skill, index });
     setShowSkillModal(true);
   };
 
@@ -300,7 +300,7 @@ const CandidateProfile = () => {
       let updatedSkills;
       if (editingSkill.index !== undefined) {
         // Edit existing
-        updatedSkills = profile.skills_detailed.map((skill, idx) => 
+        updatedSkills = profile.skills_detailed.map((skill, idx) =>
           idx === editingSkill.index ? { ...editingSkill, index: undefined } : skill
         );
       } else {
@@ -308,10 +308,10 @@ const CandidateProfile = () => {
         const { index, ...skillData } = editingSkill;
         updatedSkills = [...(profile.skills_detailed || []), skillData];
       }
-      
+
       const updatedProfile = { ...profile, skills_detailed: updatedSkills };
       const response = await candidateService.updateCandidateProfile(updatedProfile);
-      
+
       if (response.success) {
         setProfile(response.data);
         setShowSkillModal(false);
@@ -332,9 +332,9 @@ const CandidateProfile = () => {
         setSaving(true);
         const updatedSkills = profile.skills_detailed.filter((_, index) => index !== skillId);
         const updatedProfile = { ...profile, skills_detailed: updatedSkills };
-        
+
         const response = await candidateService.updateCandidateProfile(updatedProfile);
-        
+
         if (response.success) {
           setProfile(response.data);
           toast.success('Đã xóa kỹ năng');
@@ -375,9 +375,8 @@ const CandidateProfile = () => {
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className={`w-6 h-2 rounded ${
-              i <= levelNum ? 'bg-blue-500' : 'bg-gray-200'
-            }`}
+            className={`w-6 h-2 rounded ${i <= levelNum ? 'bg-blue-500' : 'bg-gray-200'
+              }`}
           />
         ))}
       </div>
@@ -411,16 +410,15 @@ const CandidateProfile = () => {
         <div className="flex space-x-3">
           <button
             onClick={() => setIsEditing(!isEditing)}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              isEditing 
-                ? 'bg-red-100 text-red-700 hover:bg-red-200' 
+            className={`px-4 py-2 rounded-lg font-medium ${isEditing
+                ? 'bg-red-100 text-red-700 hover:bg-red-200'
                 : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
-            }`}
+              }`}
           >
             {isEditing ? 'Hủy chỉnh sửa' : 'Chỉnh sửa hồ sơ'}
           </button>
           {isEditing && (
-            <button 
+            <button
               onClick={handleSaveProfile}
               disabled={saving}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center space-x-2"
@@ -463,11 +461,10 @@ const CandidateProfile = () => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
+                className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
+                  }`}
               >
                 <span className="mr-2">{tab.icon}</span>
                 {tab.label}
@@ -484,13 +481,13 @@ const CandidateProfile = () => {
                 <div className="relative w-20 h-20">
                   <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
                     {profile.user_id?.avatar_url ? (
-                      <img 
-                        src={profile.user_id.avatar_url.startsWith('http') 
-                          ? profile.user_id.avatar_url 
+                      <img
+                        src={profile.user_id.avatar_url.startsWith('http')
+                          ? profile.user_id.avatar_url
                           : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${profile.user_id.avatar_url}`
-                        } 
-                        alt="Avatar" 
-                        className="w-full h-full rounded-full object-cover" 
+                        }
+                        alt="Avatar"
+                        className="w-full h-full rounded-full object-cover"
                       />
                     ) : (
                       <span className="text-2xl text-gray-400">👤</span>
@@ -514,7 +511,7 @@ const CandidateProfile = () => {
                       accept="image/jpeg,image/png,image/gif,image/webp"
                       onChange={handleAvatarChange}
                     />
-                    <button 
+                    <button
                       onClick={() => avatarInputRef.current?.click()}
                       disabled={uploadingAvatar}
                       className="px-4 py-2 border border-gray-300 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
@@ -562,7 +559,7 @@ const CandidateProfile = () => {
                     <input
                       type="date"
                       value={profile.date_of_birth ? new Date(profile.date_of_birth).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setProfile({...profile, date_of_birth: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   ) : (
@@ -577,7 +574,7 @@ const CandidateProfile = () => {
                   {isEditing ? (
                     <select
                       value={profile.gender || ''}
-                      onChange={(e) => setProfile({...profile, gender: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, gender: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Chọn giới tính</option>
@@ -597,7 +594,7 @@ const CandidateProfile = () => {
                   {isEditing ? (
                     <textarea
                       value={profile.address || ''}
-                      onChange={(e) => setProfile({...profile, address: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, address: e.target.value })}
                       rows={2}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -612,7 +609,7 @@ const CandidateProfile = () => {
                     <input
                       type="text"
                       value={profile.city || ''}
-                      onChange={(e) => setProfile({...profile, city: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, city: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   ) : (
@@ -632,7 +629,7 @@ const CandidateProfile = () => {
                   {isEditing ? (
                     <select
                       value={profile.job_status || 'seeking'}
-                      onChange={(e) => setProfile({...profile, job_status: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, job_status: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="seeking">Đang tìm việc</option>
@@ -641,8 +638,8 @@ const CandidateProfile = () => {
                     </select>
                   ) : (
                     <p className="text-gray-900">
-                      {profile.job_status === 'seeking' ? 'Đang tìm việc' : 
-                       profile.job_status === 'employed' ? 'Đang làm việc' : 'Không tìm việc'}
+                      {profile.job_status === 'seeking' ? 'Đang tìm việc' :
+                        profile.job_status === 'employed' ? 'Đang làm việc' : 'Không tìm việc'}
                     </p>
                   )}
                 </div>
@@ -653,7 +650,7 @@ const CandidateProfile = () => {
                     <input
                       type="number"
                       value={profile.experience_years || 0}
-                      onChange={(e) => setProfile({...profile, experience_years: parseInt(e.target.value)})}
+                      onChange={(e) => setProfile({ ...profile, experience_years: parseInt(e.target.value) })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   ) : (
@@ -667,7 +664,7 @@ const CandidateProfile = () => {
                     <input
                       type="number"
                       value={profile.salary_expectation?.min || ''}
-                      onChange={(e) => setProfile({...profile, salary_expectation: {...profile.salary_expectation, min: parseInt(e.target.value)}})}
+                      onChange={(e) => setProfile({ ...profile, salary_expectation: { ...profile.salary_expectation, min: parseInt(e.target.value) } })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   ) : (
@@ -683,7 +680,7 @@ const CandidateProfile = () => {
                     <input
                       type="number"
                       value={profile.salary_expectation?.max || ''}
-                      onChange={(e) => setProfile({...profile, salary_expectation: {...profile.salary_expectation, max: parseInt(e.target.value)}})}
+                      onChange={(e) => setProfile({ ...profile, salary_expectation: { ...profile.salary_expectation, max: parseInt(e.target.value) } })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   ) : (
@@ -698,7 +695,7 @@ const CandidateProfile = () => {
                   {isEditing ? (
                     <select
                       value={profile.education_level || ''}
-                      onChange={(e) => setProfile({...profile, education_level: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, education_level: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Chọn trình độ</option>
@@ -720,7 +717,7 @@ const CandidateProfile = () => {
                     <input
                       type="url"
                       value={profile.linkedin_url || ''}
-                      onChange={(e) => setProfile({...profile, linkedin_url: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })}
                       placeholder="https://linkedin.com/in/..."
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -741,7 +738,7 @@ const CandidateProfile = () => {
                     <input
                       type="url"
                       value={profile.github_url || ''}
-                      onChange={(e) => setProfile({...profile, github_url: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, github_url: e.target.value })}
                       placeholder="https://github.com/username"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -762,7 +759,7 @@ const CandidateProfile = () => {
                     <input
                       type="url"
                       value={profile.portfolio_url || ''}
-                      onChange={(e) => setProfile({...profile, portfolio_url: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, portfolio_url: e.target.value })}
                       placeholder="https://yourportfolio.com"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -783,7 +780,7 @@ const CandidateProfile = () => {
                     <input
                       type="url"
                       value={profile.cv_file_url || ''}
-                      onChange={(e) => setProfile({...profile, cv_file_url: e.target.value})}
+                      onChange={(e) => setProfile({ ...profile, cv_file_url: e.target.value })}
                       placeholder="https://example.com/cv.pdf"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -807,7 +804,7 @@ const CandidateProfile = () => {
                 {isEditing ? (
                   <textarea
                     value={profile.bio || ''}
-                    onChange={(e) => setProfile({...profile, bio: e.target.value})}
+                    onChange={(e) => setProfile({ ...profile, bio: e.target.value })}
                     rows={4}
                     placeholder="Giới thiệu bản thân, kinh nghiệm và mục tiêu nghề nghiệp..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
@@ -823,7 +820,7 @@ const CandidateProfile = () => {
           {activeTab === 'skills' && (
             <div className="space-y-6">
               {isEditing && (
-                <button 
+                <button
                   onClick={handleAddSkill}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
@@ -846,7 +843,7 @@ const CandidateProfile = () => {
                         )}
                       </div>
                       {isEditing && (
-                        <button 
+                        <button
                           onClick={() => handleDeleteSkill(index)}
                           className="ml-3 text-red-600 hover:text-red-700"
                           title="Xóa kỹ năng"
@@ -871,7 +868,7 @@ const CandidateProfile = () => {
           {activeTab === 'experience' && (
             <div className="space-y-6">
               {isEditing && (
-                <button 
+                <button
                   onClick={handleAddExperience}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
@@ -894,13 +891,13 @@ const CandidateProfile = () => {
                       </div>
                       {isEditing && (
                         <div className="flex space-x-2">
-                          <button 
+                          <button
                             onClick={() => handleEditExperience(exp._id)}
                             className="text-blue-600 hover:text-blue-700"
                           >
                             Sửa
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteExperience(exp._id)}
                             className="text-red-600 hover:text-red-700"
                           >
@@ -935,7 +932,7 @@ const CandidateProfile = () => {
           {activeTab === 'education' && (
             <div className="space-y-6">
               {isEditing && (
-                <button 
+                <button
                   onClick={handleAddEducation}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                 >
@@ -967,13 +964,13 @@ const CandidateProfile = () => {
                       </div>
                       {isEditing && (
                         <div className="flex space-x-2 ml-4">
-                          <button 
+                          <button
                             onClick={() => handleEditEducation(edu._id)}
                             className="text-blue-600 hover:text-blue-700"
                           >
                             Sửa
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteEducation(edu._id)}
                             className="text-red-600 hover:text-red-700"
                           >
@@ -982,8 +979,8 @@ const CandidateProfile = () => {
                         </div>
                       )}
                     </div>
-                </div>
-              ))
+                  </div>
+                ))
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <p>Chưa có học vấn nào</p>
@@ -996,13 +993,13 @@ const CandidateProfile = () => {
 
       {/* Experience Modal */}
       {showExperienceModal && editingExperience && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">
                 {editingExperience._id ? 'Sửa kinh nghiệm' : 'Thêm kinh nghiệm mới'}
               </h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1011,7 +1008,7 @@ const CandidateProfile = () => {
                   <input
                     type="text"
                     value={editingExperience.position}
-                    onChange={(e) => setEditingExperience({...editingExperience, position: e.target.value})}
+                    onChange={(e) => setEditingExperience({ ...editingExperience, position: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: Frontend Developer"
                   />
@@ -1024,7 +1021,7 @@ const CandidateProfile = () => {
                   <input
                     type="text"
                     value={editingExperience.company_name}
-                    onChange={(e) => setEditingExperience({...editingExperience, company_name: e.target.value})}
+                    onChange={(e) => setEditingExperience({ ...editingExperience, company_name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: ABC Technology"
                   />
@@ -1038,7 +1035,7 @@ const CandidateProfile = () => {
                     <input
                       type="date"
                       value={editingExperience.start_date ? new Date(editingExperience.start_date).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setEditingExperience({...editingExperience, start_date: e.target.value})}
+                      onChange={(e) => setEditingExperience({ ...editingExperience, start_date: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -1050,7 +1047,7 @@ const CandidateProfile = () => {
                     <input
                       type="date"
                       value={editingExperience.end_date ? new Date(editingExperience.end_date).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setEditingExperience({...editingExperience, end_date: e.target.value})}
+                      onChange={(e) => setEditingExperience({ ...editingExperience, end_date: e.target.value })}
                       disabled={editingExperience.is_current}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                     />
@@ -1062,7 +1059,7 @@ const CandidateProfile = () => {
                     <input
                       type="checkbox"
                       checked={editingExperience.is_current}
-                      onChange={(e) => setEditingExperience({...editingExperience, is_current: e.target.checked, end_date: e.target.checked ? null : editingExperience.end_date})}
+                      onChange={(e) => setEditingExperience({ ...editingExperience, is_current: e.target.checked, end_date: e.target.checked ? null : editingExperience.end_date })}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-700">Đang làm việc tại đây</span>
@@ -1073,7 +1070,7 @@ const CandidateProfile = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả công việc</label>
                   <textarea
                     value={editingExperience.description}
-                    onChange={(e) => setEditingExperience({...editingExperience, description: e.target.value})}
+                    onChange={(e) => setEditingExperience({ ...editingExperience, description: e.target.value })}
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Mô tả công việc và trách nhiệm của bạn..."
@@ -1087,7 +1084,7 @@ const CandidateProfile = () => {
                   <input
                     type="text"
                     value={editingExperience.technologies?.join(', ') || ''}
-                    onChange={(e) => setEditingExperience({...editingExperience, technologies: e.target.value.split(',').map(t => t.trim()).filter(t => t)})}
+                    onChange={(e) => setEditingExperience({ ...editingExperience, technologies: e.target.value.split(',').map(t => t.trim()).filter(t => t) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: React, Node.js, MongoDB"
                   />
@@ -1124,7 +1121,7 @@ const CandidateProfile = () => {
               <h3 className="text-xl font-bold text-gray-900 mb-4">
                 {editingEducation._id ? 'Sửa học vấn' : 'Thêm học vấn mới'}
               </h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1133,7 +1130,7 @@ const CandidateProfile = () => {
                   <input
                     type="text"
                     value={editingEducation.school_name}
-                    onChange={(e) => setEditingEducation({...editingEducation, school_name: e.target.value})}
+                    onChange={(e) => setEditingEducation({ ...editingEducation, school_name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: Đại học Bách Khoa Hà Nội"
                   />
@@ -1146,7 +1143,7 @@ const CandidateProfile = () => {
                   <input
                     type="text"
                     value={editingEducation.degree}
-                    onChange={(e) => setEditingEducation({...editingEducation, degree: e.target.value})}
+                    onChange={(e) => setEditingEducation({ ...editingEducation, degree: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: Cử nhân"
                   />
@@ -1159,7 +1156,7 @@ const CandidateProfile = () => {
                   <input
                     type="text"
                     value={editingEducation.major}
-                    onChange={(e) => setEditingEducation({...editingEducation, major: e.target.value})}
+                    onChange={(e) => setEditingEducation({ ...editingEducation, major: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: Công nghệ Thông tin"
                   />
@@ -1173,7 +1170,7 @@ const CandidateProfile = () => {
                     <input
                       type="date"
                       value={editingEducation.start_date ? new Date(editingEducation.start_date).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setEditingEducation({...editingEducation, start_date: e.target.value})}
+                      onChange={(e) => setEditingEducation({ ...editingEducation, start_date: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -1185,7 +1182,7 @@ const CandidateProfile = () => {
                     <input
                       type="date"
                       value={editingEducation.end_date ? new Date(editingEducation.end_date).toISOString().split('T')[0] : ''}
-                      onChange={(e) => setEditingEducation({...editingEducation, end_date: e.target.value})}
+                      onChange={(e) => setEditingEducation({ ...editingEducation, end_date: e.target.value })}
                       disabled={editingEducation.is_current}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
                     />
@@ -1197,7 +1194,7 @@ const CandidateProfile = () => {
                     <input
                       type="checkbox"
                       checked={editingEducation.is_current}
-                      onChange={(e) => setEditingEducation({...editingEducation, is_current: e.target.checked, end_date: e.target.checked ? null : editingEducation.end_date})}
+                      onChange={(e) => setEditingEducation({ ...editingEducation, is_current: e.target.checked, end_date: e.target.checked ? null : editingEducation.end_date })}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-700">Đang học</span>
@@ -1212,7 +1209,7 @@ const CandidateProfile = () => {
                     min="0"
                     max="4"
                     value={editingEducation.gpa || ''}
-                    onChange={(e) => setEditingEducation({...editingEducation, gpa: parseFloat(e.target.value)})}
+                    onChange={(e) => setEditingEducation({ ...editingEducation, gpa: parseFloat(e.target.value) })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: 3.5"
                   />
@@ -1222,7 +1219,7 @@ const CandidateProfile = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả</label>
                   <textarea
                     value={editingEducation.description}
-                    onChange={(e) => setEditingEducation({...editingEducation, description: e.target.value})}
+                    onChange={(e) => setEditingEducation({ ...editingEducation, description: e.target.value })}
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="Mô tả về quá trình học tập..."
@@ -1260,7 +1257,7 @@ const CandidateProfile = () => {
               <h3 className="text-xl font-bold text-gray-900 mb-4">
                 {editingSkill.index !== undefined ? 'Sửa kỹ năng' : 'Thêm kỹ năng mới'}
               </h3>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1269,7 +1266,7 @@ const CandidateProfile = () => {
                   <input
                     type="text"
                     value={editingSkill.skill_name}
-                    onChange={(e) => setEditingSkill({...editingSkill, skill_name: e.target.value})}
+                    onChange={(e) => setEditingSkill({ ...editingSkill, skill_name: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: React, JavaScript, Python..."
                   />
@@ -1281,7 +1278,7 @@ const CandidateProfile = () => {
                   </label>
                   <select
                     value={editingSkill.skill_level}
-                    onChange={(e) => setEditingSkill({...editingSkill, skill_level: e.target.value})}
+                    onChange={(e) => setEditingSkill({ ...editingSkill, skill_level: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                   >
                     <option value="beginner">Mới bắt đầu</option>
@@ -1300,7 +1297,7 @@ const CandidateProfile = () => {
                     min="0"
                     max="50"
                     value={editingSkill.years_of_experience}
-                    onChange={(e) => setEditingSkill({...editingSkill, years_of_experience: parseInt(e.target.value) || 0})}
+                    onChange={(e) => setEditingSkill({ ...editingSkill, years_of_experience: parseInt(e.target.value) || 0 })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                     placeholder="VD: 2"
                   />
@@ -1311,7 +1308,7 @@ const CandidateProfile = () => {
                     <input
                       type="checkbox"
                       checked={editingSkill.is_primary}
-                      onChange={(e) => setEditingSkill({...editingSkill, is_primary: e.target.checked})}
+                      onChange={(e) => setEditingSkill({ ...editingSkill, is_primary: e.target.checked })}
                       className="mr-2"
                     />
                     <span className="text-sm text-gray-700">Kỹ năng chính</span>

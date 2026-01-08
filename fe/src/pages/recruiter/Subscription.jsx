@@ -9,7 +9,7 @@ const RecruiterSubscription = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const selectedPlanFromNav = location.state?.selectedPlan;
-  
+
   const [currentSubscription, setCurrentSubscription] = useState(null);
   const [subscriptionUsage, setSubscriptionUsage] = useState(null);
   const [subscriptionHistory, setSubscriptionHistory] = useState([]);
@@ -41,7 +41,7 @@ const RecruiterSubscription = () => {
       const currentSubResponse = await recruiterService.getCurrentSubscription().catch(() => null);
       console.log('Current Subscription Response:', currentSubResponse);
       setCurrentSubscription(currentSubResponse?.data || null);
-      
+
       // Usage data might be included in current subscription
       if (currentSubResponse?.data?.usage) {
         setSubscriptionUsage(currentSubResponse.data.usage);
@@ -50,7 +50,7 @@ const RecruiterSubscription = () => {
       // Load subscription history
       const subscriptionHistoryResponse = await servicePlanService.getRecruiterSubscriptions().catch(() => ({ data: [] }));
       setSubscriptionHistory(subscriptionHistoryResponse?.data || []);
-       // Load available plans for comparison/upgrade
+      // Load available plans for comparison/upgrade
       let plansResponse;
       try {
         plansResponse = await servicePlanService.getAvailablePlans();
@@ -71,7 +71,7 @@ const RecruiterSubscription = () => {
       setLoading(false);
     }
   };
-console.log('Current Subscription:', billingHistory);
+  console.log('Current Subscription:', billingHistory);
   const getStatusBadge = (status) => {
     const badges = {
       active: 'bg-green-100 text-green-800',
@@ -79,10 +79,10 @@ console.log('Current Subscription:', billingHistory);
       cancelled: 'bg-gray-100 text-gray-800',
       pending: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     const labels = {
       active: 'Đang hoạt động',
-      expired: 'Đã hết hạn', 
+      expired: 'Đã hết hạn',
       cancelled: 'Đã hủy',
       pending: 'Chờ xử lý'
     };
@@ -93,7 +93,7 @@ console.log('Current Subscription:', billingHistory);
       </span>
     );
   };
- 
+
   const getPaymentStatusBadge = (status) => {
     const badges = {
       paid: 'bg-green-100 text-green-800',
@@ -101,7 +101,7 @@ console.log('Current Subscription:', billingHistory);
       failed: 'bg-red-100 text-red-800',
       refunded: 'bg-blue-100 text-blue-800'
     };
-    
+
     const labels = {
       paid: 'Đã thanh toán',
       pending: 'Chờ thanh toán',
@@ -162,7 +162,7 @@ console.log('Current Subscription:', billingHistory);
 
     try {
       setUpgrading(true);
-      
+
       // Get recruiter data
       const recruiter = await recruiterService.getCurrentSubscription().catch(() => null);
       const recruiterId = recruiter?.data?.recruiter_id;
@@ -177,7 +177,7 @@ console.log('Current Subscription:', billingHistory);
         };
 
         const response = await servicePlanService.createMomoPayment(momoPaymentData);
-        
+
         if (response.data?.payUrl) {
           // Save payment info to localStorage for verification later
           localStorage.setItem('pending_payment', JSON.stringify({
@@ -294,7 +294,7 @@ console.log('Current Subscription:', billingHistory);
             Xem tất cả gói
           </Link>
           {!currentSubscription && (
-            <button 
+            <button
               onClick={() => upgradePlan()}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium"
             >
@@ -304,7 +304,7 @@ console.log('Current Subscription:', billingHistory);
         </div>
       </div>
 
-  
+
       {currentSubscription ? (
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-start mb-6">
@@ -353,8 +353,8 @@ console.log('Current Subscription:', billingHistory);
                       </span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-green-600 h-2 rounded-full" 
+                      <div
+                        className="bg-green-600 h-2 rounded-full"
                         style={{ width: `${getUsagePercentage(subscriptionUsage.job_postings_used || 0, subscriptionUsage.job_postings_limit || 0)}%` }}
                       ></div>
                     </div>
@@ -374,8 +374,8 @@ console.log('Current Subscription:', billingHistory);
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-600 h-2 rounded-full" 
+                    <div
+                      className="bg-blue-600 h-2 rounded-full"
                       style={{ width: `${getUsagePercentage(subscriptionUsage.cv_download_used || 0, subscriptionUsage.cv_download_limit || 0)}%` }}
                     ></div>
                   </div>
@@ -394,8 +394,8 @@ console.log('Current Subscription:', billingHistory);
                     </span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-purple-600 h-2 rounded-full" 
+                    <div
+                      className="bg-purple-600 h-2 rounded-full"
                       style={{ width: `${getUsagePercentage(subscriptionUsage.candidate_search_used || 0, subscriptionUsage.candidate_search_limit || 0)}%` }}
                     ></div>
                   </div>
@@ -426,7 +426,7 @@ console.log('Current Subscription:', billingHistory);
           {/* Actions */}
           <div className="flex justify-between items-center pt-4 border-t border-gray-200">
             <div className="flex space-x-3">
-              <button 
+              <button
                 onClick={() => upgradePlan()}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
@@ -439,7 +439,7 @@ console.log('Current Subscription:', billingHistory);
                 Xem tất cả gói
               </Link>
             </div>
-            <button 
+            <button
               onClick={cancelSubscription}
               className="px-4 py-2 text-red-600 hover:text-red-700"
             >
@@ -483,7 +483,7 @@ console.log('Current Subscription:', billingHistory);
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold text-gray-900">So sánh với gói khác</h2>
-            <Link 
+            <Link
               to="/recruiter/service-plans"
               className="text-blue-600 hover:text-blue-700 text-sm font-medium"
             >
@@ -492,13 +492,11 @@ console.log('Current Subscription:', billingHistory);
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {availablePlans.slice(0, 3).map((plan) => (
-              <div 
-                key={plan._id} 
-                className={`relative border-2 rounded-lg p-4 ${
-                  plan.is_recommended ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'
-                } ${
-                  currentSubscription?.service_plan_id?._id === plan._id ? 'ring-2 ring-blue-500' : ''
-                }`}
+              <div
+                key={plan._id}
+                className={`relative border-2 rounded-lg p-4 ${plan.is_recommended ? 'border-green-500 bg-green-50' : 'border-gray-200 bg-white'
+                  } ${currentSubscription?.service_plan_id?._id === plan._id ? 'ring-2 ring-blue-500' : ''
+                  }`}
               >
                 {currentSubscription?.service_plan_id?._id === plan._id && (
                   <div className="absolute top-0 left-0 -mt-2 -ml-2">
@@ -519,11 +517,10 @@ console.log('Current Subscription:', billingHistory);
                 <button
                   onClick={() => upgradePlan(plan._id)}
                   disabled={currentSubscription?.service_plan_id?._id === plan._id}
-                  className={`w-full py-2 px-4 rounded font-medium text-sm ${
-                    currentSubscription?.service_plan_id?._id === plan._id
+                  className={`w-full py-2 px-4 rounded font-medium text-sm ${currentSubscription?.service_plan_id?._id === plan._id
                       ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
+                    }`}
                 >
                   {currentSubscription?.service_plan_id?._id === plan._id ? 'Gói hiện tại' : 'So sánh'}
                 </button>
@@ -643,13 +640,13 @@ console.log('Current Subscription:', billingHistory);
 
       {/* Upgrade Modal */}
       {showUpgradeModal && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-900">
                 {selectedPlan ? `${currentSubscription ? 'Nâng cấp' : 'Đăng ký'} lên ${selectedPlan.name}` : 'Chọn gói đăng ký'}
               </h3>
-              <button 
+              <button
                 onClick={() => {
                   setShowUpgradeModal(false);
                   setSelectedPlan(null);
@@ -685,7 +682,7 @@ console.log('Current Subscription:', billingHistory);
                   {currentSubscription && (
                     <div className="mt-4 p-3 bg-blue-50 rounded">
                       <p className="text-sm text-blue-700">
-                        {selectedPlan.price > currentSubscription.service_plan_id?.price ? 'Chênh lệch' : 'Giảm giá'}: 
+                        {selectedPlan.price > currentSubscription.service_plan_id?.price ? 'Chênh lệch' : 'Giảm giá'}:
                         <strong> {formatCurrency(Math.abs(selectedPlan.price - (currentSubscription.service_plan_id?.price || 0)))}/tháng</strong>
                       </p>
                     </div>
@@ -711,7 +708,7 @@ console.log('Current Subscription:', billingHistory);
                 )}
 
                 <div className="flex justify-end space-x-3 pt-4">
-                  <button 
+                  <button
                     onClick={() => {
                       setShowUpgradeModal(false);
                       setSelectedPlan(null);
@@ -721,7 +718,7 @@ console.log('Current Subscription:', billingHistory);
                   >
                     Hủy
                   </button>
-                  <button 
+                  <button
                     onClick={confirmUpgrade}
                     disabled={upgrading}
                     className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -743,12 +740,11 @@ console.log('Current Subscription:', billingHistory);
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {availablePlans.map((plan) => (
-                  <div 
+                  <div
                     key={plan._id}
                     onClick={() => setSelectedPlan(plan)}
-                    className={`border-2 rounded-lg p-4 cursor-pointer hover:border-green-500 ${
-                      plan.is_recommended ? 'border-green-500 bg-green-50' : 'border-gray-200'
-                    }`}
+                    className={`border-2 rounded-lg p-4 cursor-pointer hover:border-green-500 ${plan.is_recommended ? 'border-green-500 bg-green-50' : 'border-gray-200'
+                      }`}
                   >
                     <h4 className="font-medium text-gray-900">{plan.name}</h4>
                     <p className="text-2xl font-bold text-gray-900 mt-2">{formatCurrency(plan.price)}</p>

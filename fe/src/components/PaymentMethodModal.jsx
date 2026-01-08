@@ -58,7 +58,7 @@ const PaymentMethodModal = ({ show, onClose, onConfirm, planName, amount, loadin
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+    <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50 flex items-center justify-center">
       <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
@@ -98,13 +98,12 @@ const PaymentMethodModal = ({ show, onClose, onConfirm, planName, amount, loadin
               <div
                 key={method.id}
                 onClick={() => !method.disabled && setSelectedMethod(method.id)}
-                className={`relative border-2 rounded-lg p-4 cursor-pointer transition-all ${
-                  method.disabled
+                className={`relative border-2 rounded-lg p-4 cursor-pointer transition-all ${method.disabled
                     ? 'bg-gray-50 border-gray-200 opacity-50 cursor-not-allowed'
                     : selectedMethod === method.id
-                    ? 'border-blue-500 bg-blue-50 shadow-md'
-                    : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'
-                }`}
+                      ? 'border-blue-500 bg-blue-50 shadow-md'
+                      : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'
+                  }`}
               >
                 <div className="flex items-center">
                   {/* Radio Button */}

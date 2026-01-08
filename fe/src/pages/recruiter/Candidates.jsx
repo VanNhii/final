@@ -8,7 +8,7 @@ const Candidates = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCandidates, setSelectedCandidates] = useState([]);
-  
+
   // Filters and search
   const [filters, setFilters] = useState({
     keyword: '',
@@ -19,17 +19,17 @@ const Candidates = () => {
     salaryRange: '',
     jobType: ''
   });
-  
+
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCandidates, setTotalCandidates] = useState(0);
   const candidatesPerPage = 10;
-  
+
   // Modal state
   const [selectedCandidate, setSelectedCandidate] = useState(null);
   const [showCandidateModal, setShowCandidateModal] = useState(false);
-  
+
   // Stats
   const [stats, setStats] = useState({
     totalCandidates: 0,
@@ -42,7 +42,7 @@ const Candidates = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const queryParams = {
         page: currentPage,
         limit: candidatesPerPage,
@@ -50,14 +50,14 @@ const Candidates = () => {
           Object.entries(filters).filter(([key, value]) => value && value.trim())
         )
       };
-      
+
       const response = await recruiterService.searchCandidates(queryParams);
-      
+
       if (response.success) {
         setCandidates(response.data.candidates || []);
         setTotalPages(Math.ceil((response.data.total || 0) / candidatesPerPage));
         setTotalCandidates(response.data.total || 0);
-        
+
         // Update stats
         setStats({
           totalCandidates: response.data.total || 0,
@@ -263,7 +263,7 @@ const Candidates = () => {
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Kinh nghiệm
@@ -280,7 +280,7 @@ const Candidates = () => {
                 <option value="5+">5+ năm</option>
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Địa điểm
@@ -293,7 +293,7 @@ const Candidates = () => {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Kỹ năng
@@ -481,7 +481,7 @@ const Candidates = () => {
               >
                 Trước
               </button>
-              
+
               {[...Array(totalPages)].map((_, index) => {
                 const page = index + 1;
                 if (page === 1 || page === totalPages || (page >= currentPage - 2 && page <= currentPage + 2)) {
@@ -489,11 +489,10 @@ const Candidates = () => {
                     <button
                       key={page}
                       onClick={() => setCurrentPage(page)}
-                      className={`px-3 py-1 border rounded-md text-sm font-medium ${
-                        currentPage === page
+                      className={`px-3 py-1 border rounded-md text-sm font-medium ${currentPage === page
                           ? 'bg-blue-600 text-white border-blue-600'
                           : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {page}
                     </button>
@@ -503,7 +502,7 @@ const Candidates = () => {
                 }
                 return null;
               })}
-              
+
               <button
                 onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
@@ -517,7 +516,7 @@ const Candidates = () => {
 
         {/* Candidate Detail Modal */}
         {showCandidateModal && selectedCandidate && (
-          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
             <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-lg font-medium text-gray-900">
@@ -530,7 +529,7 @@ const Candidates = () => {
                   <FaTimes className="w-6 h-6" />
                 </button>
               </div>
-              
+
               <div className="max-h-96 overflow-y-auto">
                 <div className="space-y-4">
                   <div className="flex items-center space-x-4">
@@ -547,7 +546,7 @@ const Candidates = () => {
                       <p className="text-gray-600">{selectedCandidate.phone}</p>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Kinh nghiệm</label>
@@ -566,7 +565,7 @@ const Candidates = () => {
                       <p className="text-sm text-gray-900">{selectedCandidate.education || 'Chưa cập nhật'}</p>
                     </div>
                   </div>
-                  
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Kỹ năng</label>
                     <div className="flex flex-wrap gap-2">
@@ -580,14 +579,14 @@ const Candidates = () => {
                       ))}
                     </div>
                   </div>
-                  
+
                   {selectedCandidate.summary && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Giới thiệu bản thân</label>
                       <p className="text-sm text-gray-900 whitespace-pre-wrap">{selectedCandidate.summary}</p>
                     </div>
                   )}
-                  
+
                   {selectedCandidate.workExperience && selectedCandidate.workExperience.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Kinh nghiệm làm việc</label>
@@ -607,7 +606,7 @@ const Candidates = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex justify-end space-x-3 mt-6">
                 <button
                   onClick={() => handleDownloadCV(selectedCandidate._id, selectedCandidate.fullName)}

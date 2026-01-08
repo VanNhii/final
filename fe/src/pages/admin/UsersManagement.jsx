@@ -32,24 +32,24 @@ const UsersManagement = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      
+
       // Build query parameters
       const params = {
         page: filters.page,
         limit: filters.limit
       };
-      
+
       if (filters.search) params.search = filters.search;
       if (filters.role) params.role = filters.role;
       if (filters.status) params.status = filters.status;
 
       const response = await adminService.getUsers(params);
-      
+
       if (response.success) {
         setUsers(response.data || []);
         setTotalUsers(response?.total || 0);
         setPagination(response.pagination || {});
-        
+
         // Use stats from backend response if available
         if (response.stats) {
           setStats({
@@ -74,7 +74,7 @@ const UsersManagement = () => {
     } catch (error) {
       console.error('Error fetching users:', error);
       toast.error('Không thể tải danh sách người dùng');
-      
+
       // Fallback to empty state
       setUsers([]);
       setTotalUsers(0);
@@ -87,7 +87,7 @@ const UsersManagement = () => {
   const handleStatusChange = async (userId, newStatus, reason = '') => {
     try {
       setActionLoading(prev => ({ ...prev, [userId]: true }));
-      
+
       const statusText = newStatus ? 'approved' : 'suspended';
       const response = await adminService.updateUserStatus(userId, {
         status: statusText,
@@ -95,9 +95,9 @@ const UsersManagement = () => {
       });
 
       if (response.success) {
-        setUsers(users.map(user => 
-          user._id === userId || user.id === userId 
-            ? { ...user, is_active: newStatus, account_status: statusText } 
+        setUsers(users.map(user =>
+          user._id === userId || user.id === userId
+            ? { ...user, is_active: newStatus, account_status: statusText }
             : user
         ));
         toast.success(`${newStatus ? 'Kích hoạt' : 'Khóa'} tài khoản thành công`);
@@ -128,7 +128,7 @@ const UsersManagement = () => {
   const handleExportUsers = async () => {
     try {
       const reportDate = new Date().toLocaleDateString('vi-VN');
-      
+
       // Summary section
       const summaryHeaders = ['Thông tin báo cáo', 'Giá trị'];
       const summaryRows = [
@@ -138,32 +138,32 @@ const UsersManagement = () => {
         ['Nhà tuyển dụng', stats.recruiters],
         ['Tài khoản bị khóa', stats.inactive]
       ];
-      
+
       // Details section
       const headers = ['STT', 'Họ tên', 'Email', 'Vai trò', 'Trạng thái', 'Ngày tạo', 'Lần đăng nhập cuối'];
       const rows = users.map((user, index) => [
         index + 1,
         getUserDisplayName(user),
         user.email || '',
-        user.role === 'candidate' ? 'Ứng viên' : 
-        user.role === 'recruiter' ? 'Nhà tuyển dụng' : 
-        user.role === 'admin' ? 'Quản trị viên' : user.role,
+        user.role === 'candidate' ? 'Ứng viên' :
+          user.role === 'recruiter' ? 'Nhà tuyển dụng' :
+            user.role === 'admin' ? 'Quản trị viên' : user.role,
         user.is_active ? 'Hoạt động' : 'Bị khóa',
         formatDate(user.created_at),
         user.last_login ? formatDate(user.last_login) : 'Chưa đăng nhập'
       ]);
-      
+
       const BOM = '\uFEFF';
-      const csvContent = BOM + 
+      const csvContent = BOM +
         'BÁO CÁO NGƯỜI DÙNG\n\n' +
-        [summaryHeaders, ...summaryRows].map(row => 
+        [summaryHeaders, ...summaryRows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n') +
         '\n\nCHI TIẾT NGƯỜI DÙNG\n' +
-        [headers, ...rows].map(row => 
+        [headers, ...rows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -179,8 +179,8 @@ const UsersManagement = () => {
   };
 
   const handleSelectUser = (userId) => {
-    setSelectedUsers(prev => 
-      prev.includes(userId) 
+    setSelectedUsers(prev =>
+      prev.includes(userId)
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
@@ -188,8 +188,8 @@ const UsersManagement = () => {
 
   const handleSelectAll = () => {
     setSelectedUsers(
-      selectedUsers.length === users.length 
-        ? [] 
+      selectedUsers.length === users.length
+        ? []
         : users.map(user => user._id || user.id)
     );
   };
@@ -200,16 +200,16 @@ const UsersManagement = () => {
       return;
     }
 
-    const confirmMessage = action === 'suspend' 
+    const confirmMessage = action === 'suspend'
       ? `Bạn có chắc muốn khóa ${selectedUsers.length} tài khoản đã chọn?`
       : `Bạn có chắc muốn kích hoạt ${selectedUsers.length} tài khoản đã chọn?`;
-    
+
     if (!window.confirm(confirmMessage)) return;
 
     try {
       setActionLoading(prev => ({ ...prev, bulk: true }));
-      
-      const promises = selectedUsers.map(userId => 
+
+      const promises = selectedUsers.map(userId =>
         adminService.updateUserStatus(userId, {
           status: action === 'suspend' ? 'suspended' : 'approved',
           reason: action === 'suspend' ? 'Khóa hàng loạt bởi admin' : 'Kích hoạt hàng loạt bởi admin'
@@ -217,13 +217,13 @@ const UsersManagement = () => {
       );
 
       await Promise.all(promises);
-      
+
       // Update local state
       setUsers(users.map(user => {
         const userId = user._id || user.id;
         if (selectedUsers.includes(userId)) {
-          return { 
-            ...user, 
+          return {
+            ...user,
             is_active: action !== 'suspend',
             account_status: action === 'suspend' ? 'suspended' : 'approved'
           };
@@ -266,7 +266,7 @@ const UsersManagement = () => {
       recruiter: 'bg-green-100 text-green-800',
       candidate: 'bg-blue-100 text-blue-800'
     };
-    
+
     const labels = {
       admin: 'Quản trị viên',
       recruiter: 'Nhà tuyển dụng',
@@ -281,9 +281,8 @@ const UsersManagement = () => {
   };
 
   const getStatusBadge = (isActive) => (
-    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-      isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-    }`}>
+    <span className={`px-2 py-1 text-xs font-medium rounded-full ${isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+      }`}>
       {isActive ? 'Hoạt động' : 'Bị khóa'}
     </span>
   );
@@ -316,7 +315,7 @@ const UsersManagement = () => {
           <p className="mt-1 text-gray-600">Quản lý tài khoản và quyền truy cập của người dùng</p>
         </div>
         <div className="mt-4 sm:mt-0">
-          <button 
+          <button
             onClick={handleExportUsers}
             className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
           >
@@ -340,7 +339,7 @@ const UsersManagement = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Vai trò
@@ -422,14 +421,14 @@ const UsersManagement = () => {
                 <span className="text-sm text-gray-600">
                   Đã chọn {selectedUsers.length} người dùng
                 </span>
-                <button 
+                <button
                   onClick={() => handleBulkAction('suspend')}
                   disabled={actionLoading.bulk}
                   className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50"
                 >
                   {actionLoading.bulk ? 'Đang xử lý...' : 'Khóa tài khoản'}
                 </button>
-                <button 
+                <button
                   onClick={() => handleBulkAction('activate')}
                   disabled={actionLoading.bulk}
                   className="text-green-600 hover:text-green-700 text-sm font-medium disabled:opacity-50"
@@ -478,7 +477,7 @@ const UsersManagement = () => {
                 const userId = getUserId(user);
                 const displayName = getUserDisplayName(user);
                 const isLoading = actionLoading[userId];
-                
+
                 return (
                   <tr key={userId} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -550,11 +549,10 @@ const UsersManagement = () => {
                         <button
                           onClick={() => handleStatusChange(userId, !user.is_active)}
                           disabled={isLoading}
-                          className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                            user.is_active 
-                              ? 'text-gray-500 hover:text-red-600 hover:bg-red-50' 
+                          className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${user.is_active
+                              ? 'text-gray-500 hover:text-red-600 hover:bg-red-50'
                               : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
-                          }`}
+                            }`}
                           title={user.is_active ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
                         >
                           {isLoading ? (
@@ -584,14 +582,14 @@ const UsersManagement = () => {
         {/* Pagination */}
         <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
           <div className="flex-1 flex justify-between sm:hidden">
-            <button 
+            <button
               onClick={() => handlePageChange(Math.max(1, filters.page - 1))}
               disabled={filters.page <= 1}
               className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
             >
               Trước
             </button>
-            <button 
+            <button
               onClick={() => handlePageChange(filters.page + 1)}
               disabled={!pagination.hasNext}
               className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
@@ -611,7 +609,7 @@ const UsersManagement = () => {
             </div>
             <div>
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                <button 
+                <button
                   onClick={() => handlePageChange(Math.max(1, filters.page - 1))}
                   disabled={filters.page <= 1}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
@@ -620,28 +618,27 @@ const UsersManagement = () => {
                     <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {/* Page numbers */}
                 {pagination.totalPages && [...Array(Math.min(5, pagination.totalPages))].map((_, index) => {
                   const pageNumber = Math.max(1, filters.page - 2) + index;
                   if (pageNumber > pagination.totalPages) return null;
-                  
+
                   return (
                     <button
                       key={pageNumber}
                       onClick={() => handlePageChange(pageNumber)}
-                      className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
-                        pageNumber === filters.page
+                      className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${pageNumber === filters.page
                           ? 'bg-primary-50 border-primary-500 text-primary-600'
                           : 'bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {pageNumber}
                     </button>
                   );
                 })}
-                
-                <button 
+
+                <button
                   onClick={() => handlePageChange(filters.page + 1)}
                   disabled={!pagination.hasNext}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
@@ -658,7 +655,7 @@ const UsersManagement = () => {
 
       {/* User Detail Modal */}
       {showUserModal && selectedUser && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">Chi tiết người dùng</h3>
@@ -671,7 +668,7 @@ const UsersManagement = () => {
                 </svg>
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -747,11 +744,10 @@ const UsersManagement = () => {
                     handleStatusChange(userId, !selectedUser.is_active);
                     setShowUserModal(false);
                   }}
-                  className={`px-4 py-2 rounded-md text-sm font-medium text-white ${
-                    selectedUser.is_active 
-                      ? 'bg-red-600 hover:bg-red-700' 
+                  className={`px-4 py-2 rounded-md text-sm font-medium text-white ${selectedUser.is_active
+                      ? 'bg-red-600 hover:bg-red-700'
                       : 'bg-green-600 hover:bg-green-700'
-                  }`}
+                    }`}
                 >
                   {selectedUser.is_active ? 'Khóa tài khoản' : 'Kích hoạt tài khoản'}
                 </button>

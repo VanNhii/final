@@ -25,7 +25,7 @@ const Subscriptions = () => {
   const handleExportSubscriptions = async () => {
     try {
       const reportDate = new Date().toLocaleDateString('vi-VN');
-      
+
       // Summary section
       const summaryHeaders = ['Thông tin báo cáo', 'Giá trị'];
       const summaryRows = [
@@ -35,7 +35,7 @@ const Subscriptions = () => {
         ['Hết hạn', stats.expired],
         ['Tự động gia hạn', stats.autoRenewal]
       ];
-      
+
       // Details section
       const headers = ['STT', 'Nhà tuyển dụng', 'Email', 'Gói dịch vụ', 'Ngày bắt đầu', 'Ngày kết thúc', 'Trạng thái', 'Thanh toán', 'Tự động gia hạn'];
       const rows = subscriptions.map((sub, index) => [
@@ -45,24 +45,24 @@ const Subscriptions = () => {
         getServicePlanInfo(sub),
         formatDate(sub.start_date || sub.startDate),
         formatDate(sub.end_date || sub.endDate),
-        (sub.subscription_status || sub.status) === 'active' ? 'Đang hoạt động' : 
-        (sub.subscription_status || sub.status) === 'expired' ? 'Hết hạn' : 
-        (sub.subscription_status || sub.status) === 'cancelled' ? 'Đã hủy' : sub.subscription_status || sub.status,
+        (sub.subscription_status || sub.status) === 'active' ? 'Đang hoạt động' :
+          (sub.subscription_status || sub.status) === 'expired' ? 'Hết hạn' :
+            (sub.subscription_status || sub.status) === 'cancelled' ? 'Đã hủy' : sub.subscription_status || sub.status,
         (sub.payment_status || sub.paymentStatus) === 'paid' ? 'Đã thanh toán' : 'Chưa thanh toán',
         (sub.auto_renewal !== undefined ? sub.auto_renewal : sub.autoRenewal) ? 'Bật' : 'Tắt'
       ]);
-      
+
       const BOM = '\uFEFF';
-      const csvContent = BOM + 
+      const csvContent = BOM +
         'BÁO CÁO SUBSCRIPTION\n\n' +
-        [summaryHeaders, ...summaryRows].map(row => 
+        [summaryHeaders, ...summaryRows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n') +
         '\n\nCHI TIẾT SUBSCRIPTION\n' +
-        [headers, ...rows].map(row => 
+        [headers, ...rows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -81,7 +81,7 @@ const Subscriptions = () => {
     try {
       setLoading(true);
       const response = await adminService.getSubscriptions();
-      
+
       if (response.data) {
         const subscriptionsData = response.data || [];
         setSubscriptions(subscriptionsData);
@@ -100,7 +100,7 @@ const Subscriptions = () => {
   const fetchStats = async () => {
     try {
       const response = await adminService.getSubscriptionStats();
-      
+
       if (response.data?.success) {
         setStats(response.data.data || {
           active: 0,
@@ -117,13 +117,13 @@ const Subscriptions = () => {
   const updateSubscriptionStatus = async (subscriptionId, newStatus) => {
     try {
       setActionLoading(prev => ({ ...prev, [subscriptionId]: true }));
-      
+
       const response = await adminService.updateSubscriptionStatus(subscriptionId, {
         status: newStatus
       });
-      
+
       if (response.data?.success) {
-        setSubscriptions(subscriptions.map(sub => 
+        setSubscriptions(subscriptions.map(sub =>
           (sub._id === subscriptionId || sub.id === subscriptionId)
             ? { ...sub, subscription_status: newStatus, status: newStatus }
             : sub
@@ -142,7 +142,7 @@ const Subscriptions = () => {
   };
 
   const getSubscriptionId = (subscription) => subscription._id || subscription.id;
-  
+
   const getRecruiterInfo = (subscription) => {
     if (subscription.recruiter_id && typeof subscription.recruiter_id === 'object') {
       const email = subscription.recruiter_id.user_id?.email || subscription.recruiter_id.email || 'N/A';
@@ -176,7 +176,7 @@ const Subscriptions = () => {
       cancelled: 'bg-gray-100 text-gray-800',
       pending: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     const labels = {
       active: 'Đang hoạt động',
       expired: 'Hết hạn',
@@ -197,7 +197,7 @@ const Subscriptions = () => {
       unpaid: 'bg-red-100 text-red-800',
       partial: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     const labels = {
       paid: 'Đã thanh toán',
       unpaid: 'Chưa thanh toán',
@@ -211,8 +211,8 @@ const Subscriptions = () => {
     );
   };
 
-  const filteredSubscriptions = filter === 'all' 
-    ? subscriptions 
+  const filteredSubscriptions = filter === 'all'
+    ? subscriptions
     : subscriptions.filter(sub => (sub.subscription_status || sub.status) === filter);
 
   if (loading) {
@@ -331,7 +331,7 @@ const Subscriptions = () => {
                 <option value="cancelled">Đã hủy</option>
                 <option value="pending">Chờ kích hoạt</option>
               </select>
-              <button 
+              <button
                 onClick={handleExportSubscriptions}
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
               >
@@ -375,7 +375,7 @@ const Subscriptions = () => {
                   const isActionLoading = actionLoading[subscriptionId];
                   const recruiterInfo = getRecruiterInfo(subscription);
                   const servicePlan = getServicePlanInfo(subscription);
-                  
+
                   return (
                     <tr key={subscriptionId}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -412,18 +412,17 @@ const Subscriptions = () => {
                         {getStatusBadge(subscription.subscription_status || subscription.status)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          (subscription.auto_renewal !== undefined ? subscription.auto_renewal : subscription.autoRenewal)
-                            ? 'bg-blue-100 text-blue-800' 
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${(subscription.auto_renewal !== undefined ? subscription.auto_renewal : subscription.autoRenewal)
+                            ? 'bg-blue-100 text-blue-800'
                             : 'bg-gray-100 text-gray-800'
-                        }`}>
+                          }`}>
                           {(subscription.auto_renewal !== undefined ? subscription.auto_renewal : subscription.autoRenewal) ? 'Bật' : 'Tắt'}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-1">
                           {/* Chi tiết */}
-                          <button 
+                          <button
                             onClick={() => {
                               setSelectedSubscription(subscription);
                               setShowSubscriptionModal(true);
@@ -438,7 +437,7 @@ const Subscriptions = () => {
                           </button>
                           {/* Gia hạn */}
                           {(subscription.subscription_status || subscription.status) === 'expired' && (
-                            <button 
+                            <button
                               onClick={() => updateSubscriptionStatus(subscriptionId, 'active')}
                               disabled={isActionLoading}
                               className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
@@ -458,7 +457,7 @@ const Subscriptions = () => {
                           )}
                           {/* Hủy */}
                           {(subscription.subscription_status || subscription.status) === 'active' && (
-                            <button 
+                            <button
                               onClick={() => updateSubscriptionStatus(subscriptionId, 'cancelled')}
                               disabled={isActionLoading}
                               className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
@@ -478,7 +477,7 @@ const Subscriptions = () => {
                           )}
                           {/* Kích hoạt lại */}
                           {subscription.status === 'cancelled' && (
-                            <button 
+                            <button
                               onClick={() => updateSubscriptionStatus(subscriptionId, 'active')}
                               disabled={isActionLoading}
                               className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
@@ -522,7 +521,7 @@ const Subscriptions = () => {
 
       {/* Subscription Detail Modal */}
       {showSubscriptionModal && selectedSubscription && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">Chi tiết Subscription</h3>
@@ -535,7 +534,7 @@ const Subscriptions = () => {
                 </svg>
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {/* Status */}
               <div className="flex justify-between items-center border-b pb-4">
@@ -573,11 +572,10 @@ const Subscriptions = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Tự động gia hạn</label>
                   <p className="mt-1">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      (selectedSubscription.auto_renewal !== undefined ? selectedSubscription.auto_renewal : selectedSubscription.autoRenewal)
-                        ? 'bg-blue-100 text-blue-800' 
+                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${(selectedSubscription.auto_renewal !== undefined ? selectedSubscription.auto_renewal : selectedSubscription.autoRenewal)
+                        ? 'bg-blue-100 text-blue-800'
                         : 'bg-gray-100 text-gray-800'
-                    }`}>
+                      }`}>
                       {(selectedSubscription.auto_renewal !== undefined ? selectedSubscription.auto_renewal : selectedSubscription.autoRenewal) ? 'Bật' : 'Tắt'}
                     </span>
                   </p>

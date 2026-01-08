@@ -65,10 +65,10 @@ const Icon = ({ paths, className = "w-6 h-6" }) => (
 // Navigation item component
 const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
   const baseClasses = "group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 mb-1";
-  const activeClasses = isActive 
-    ? "bg-blue-50 text-blue-700 shadow-sm" 
+  const activeClasses = isActive
+    ? "bg-blue-50 text-blue-700 shadow-sm"
     : "text-gray-600 hover:bg-gray-50 hover:text-blue-700 hover:translate-x-1";
-  
+
   return (
     <Link
       to={item.href}
@@ -77,9 +77,9 @@ const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
       onClick={onClick}
     >
       <div className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
-        <Icon 
-          paths={item.icon} 
-          className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-700' : 'text-gray-400 group-hover:text-blue-600'}`} 
+        <Icon
+          paths={item.icon}
+          className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-700' : 'text-gray-400 group-hover:text-blue-600'}`}
         />
       </div>
       {!isCollapsed && <span className="truncate font-medium">{item.name}</span>}
@@ -88,7 +88,7 @@ const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
 };
 
 // Sidebar component
-const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {  
+const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm transition-all duration-300">
       <div className="flex-1 flex flex-col pt-6 pb-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
@@ -108,16 +108,16 @@ const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {
             )}
           </div>
         </Link>
-        
+
         {/* Navigation */}
         <nav className="flex-1 px-3 space-y-1">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href || 
-                           (item.href !== '/candidate/dashboard' && location.pathname.startsWith(item.href));
+            const isActive = location.pathname === item.href ||
+              (item.href !== '/candidate/dashboard' && location.pathname.startsWith(item.href));
             return (
-              <NavigationItem 
-                key={item.name} 
-                item={item} 
+              <NavigationItem
+                key={item.name}
+                item={item}
                 isActive={isActive}
                 isCollapsed={isCollapsed}
                 onClick={onMobileClose}
@@ -175,7 +175,7 @@ const Header = ({ onToggleSidebar, onMobileMenuToggle, isCollapsed, user, onLogo
   const markAsRead = async (notificationId) => {
     try {
       await candidateService.markNotificationAsRead(notificationId);
-      setNotifications(prev => 
+      setNotifications(prev =>
         prev.map(n => n._id === notificationId ? { ...n, is_read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
@@ -252,14 +252,14 @@ const Header = ({ onToggleSidebar, onMobileMenuToggle, isCollapsed, user, onLogo
     try {
       setUploadingAvatar(true);
       const response = await uploadService.uploadAvatar(file);
-      
+
       if (response.success && response.data) {
         // Backend returns relative path like: /uploads/profile_avatar/filename.jpg
         const avatarUrl = response.data.file_url;
-        
+
         // Save relative path to database (no CORS issues when loading from same origin)
         await candidateService.updateUserProfile(user._id, { avatar_url: avatarUrl });
-        
+
         toast.success('Cập nhật ảnh đại diện thành công!');
         // Notify parent to refresh user data
         if (onAvatarUpdate) {
@@ -316,27 +316,27 @@ const Header = ({ onToggleSidebar, onMobileMenuToggle, isCollapsed, user, onLogo
             >
               <Icon paths="M4 6h16M4 12h16M4 18h16" className="h-6 w-6" />
             </button>
-            
+
             {/* Desktop sidebar toggle */}
             <button
               type="button"
               className="hidden lg:inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200"
               onClick={onToggleSidebar}
             >
-              <Icon 
-                paths={isCollapsed 
-                  ? "M13 5l7 7-7 7M5 5l7 7-7 7" 
+              <Icon
+                paths={isCollapsed
+                  ? "M13 5l7 7-7 7M5 5l7 7-7 7"
                   : "M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                } 
-                className="h-5 w-5" 
+                }
+                className="h-5 w-5"
               />
             </button>
           </div>
-        
+
           <div className="flex items-center space-x-4">
             {/* Notifications */}
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-lg transition-colors duration-200"
               >
@@ -364,115 +364,113 @@ const Header = ({ onToggleSidebar, onMobileMenuToggle, isCollapsed, user, onLogo
                       )}
                     </div>
                   </div>
-                
-                <div className="max-h-96 overflow-y-auto">
-                  {loadingNotifications ? (
-                    <div className="p-4 text-center text-gray-500">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
-                    </div>
-                  ) : notifications.length > 0 ? (
-                    notifications.map((notification) => (
-                      <div
-                        key={notification._id}
-                        onClick={() => {
-                          if (!notification.is_read) {
-                            markAsRead(notification._id);
-                          }
-                        }}
-                        className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                          !notification.is_read ? 'bg-blue-50' : ''
-                        }`}
-                      >
-                        <div className="flex items-start">
-                          <div className={`flex-shrink-0 h-2 w-2 rounded-full mt-2 mr-3 ${
-                            !notification.is_read ? 'bg-blue-500' : 'bg-gray-300'
-                          }`}></div>
-                          <div className="flex-1 min-w-0">
-                            <p className={`text-sm ${!notification.is_read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
-                              {notification.title}
-                            </p>
-                            {notification.message && (
-                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">
-                                {notification.message}
+
+                  <div className="max-h-96 overflow-y-auto">
+                    {loadingNotifications ? (
+                      <div className="p-4 text-center text-gray-500">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                      </div>
+                    ) : notifications.length > 0 ? (
+                      notifications.map((notification) => (
+                        <div
+                          key={notification._id}
+                          onClick={() => {
+                            if (!notification.is_read) {
+                              markAsRead(notification._id);
+                            }
+                          }}
+                          className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${!notification.is_read ? 'bg-blue-50' : ''
+                            }`}
+                        >
+                          <div className="flex items-start">
+                            <div className={`flex-shrink-0 h-2 w-2 rounded-full mt-2 mr-3 ${!notification.is_read ? 'bg-blue-500' : 'bg-gray-300'
+                              }`}></div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-sm ${!notification.is_read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                                {notification.title}
                               </p>
-                            )}
-                            <p className="text-xs text-gray-400 mt-1">
-                              {formatTime(notification.created_at)}
-                            </p>
+                              {notification.message && (
+                                <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                                  {notification.message}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-400 mt-1">
+                                {formatTime(notification.created_at)}
+                              </p>
+                            </div>
                           </div>
                         </div>
+                      ))
+                    ) : (
+                      <div className="p-8 text-center text-gray-500">
+                        <Icon paths="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" className="h-12 w-12 mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm">Không có thông báo</p>
                       </div>
-                    ))
-                  ) : (
-                    <div className="p-8 text-center text-gray-500">
-                      <Icon paths="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" className="h-12 w-12 mx-auto text-gray-300 mb-2" />
-                      <p className="text-sm">Không có thông báo</p>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* User menu */}
             <div className="relative flex items-center space-x-3 pl-3 border-gray-200">
-            <div className="relative group">
-              {uploadingAvatar && (
-                <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center z-10">
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                </div>
-              )}
-              <button
-                onClick={handleAvatarClick}
-                disabled={uploadingAvatar}
-                className="relative w-10 h-10 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 hover:opacity-80"
-                title="Thay đổi ảnh đại diện"
-              >
-                {user?.avatar_url ? (
-                  <img 
-                    src={getAvatarUrl(user.avatar_url)} 
-                    alt="Avatar" 
-                    className="w-full h-full rounded-full object-cover shadow-md"
-                    onError={(e) => {
-                      // Fallback if image fails to load
-                      e.target.style.display = 'none';
-                    }}
-                  />
-                ) : (
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
-                    {user?.full_name?.charAt(0)?.toUpperCase() || user?.first_name?.charAt(0)?.toUpperCase() || 'C'}
+              <div className="relative group">
+                {uploadingAvatar && (
+                  <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center z-10">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
                   </div>
                 )}
-                <div className="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
-                  <Icon paths="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z" className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
-                </div>
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarChange}
-                className="hidden"
-              />
-            </div>
-            <div className="hidden sm:block">
-              <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">
-                {user?.full_name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Ứng viên'}
+                <button
+                  onClick={handleAvatarClick}
+                  disabled={uploadingAvatar}
+                  className="relative w-10 h-10 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 hover:opacity-80"
+                  title="Thay đổi ảnh đại diện"
+                >
+                  {user?.avatar_url ? (
+                    <img
+                      src={getAvatarUrl(user.avatar_url)}
+                      alt="Avatar"
+                      className="w-full h-full rounded-full object-cover shadow-md"
+                      onError={(e) => {
+                        // Fallback if image fails to load
+                        e.target.style.display = 'none';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
+                      {user?.full_name?.charAt(0)?.toUpperCase() || user?.first_name?.charAt(0)?.toUpperCase() || 'C'}
+                    </div>
+                  )}
+                  <div className="absolute inset-0 rounded-full bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 flex items-center justify-center">
+                    <Icon paths="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z M15 13a3 3 0 11-6 0 3 3 0 016 0z" className="h-4 w-4 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                  </div>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarChange}
+                  className="hidden"
+                />
               </div>
-              <div className="text-xs text-gray-500">Ứng viên</div>
+              <div className="hidden sm:block">
+                <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">
+                  {user?.full_name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || 'Ứng viên'}
+                </div>
+                <div className="text-xs text-gray-500">Ứng viên</div>
+              </div>
+              <button
+                onClick={onLogout}
+                className="p-2 text-gray-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded-lg transition-colors duration-200"
+                title="Đăng xuất"
+              >
+                <Icon paths="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" className="h-5 w-5" />
+              </button>
             </div>
-            <button
-              onClick={onLogout}
-              className="p-2 text-gray-400 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 rounded-lg transition-colors duration-200"
-              title="Đăng xuất"
-            >
-              <Icon paths="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" className="h-5 w-5" />
-            </button>
           </div>
         </div>
       </div>
     </div>
-  </div>
   );
 };
 
@@ -528,7 +526,7 @@ const CandidateLayout = () => {
     <div className="h-screen flex overflow-hidden bg-gray-100">
       {/* Mobile sidebar */}
       <div className={`fixed inset-0 flex z-40 lg:hidden ${isMobileOpen ? '' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setIsMobileOpen(false)} />
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm" onClick={() => setIsMobileOpen(false)} />
         <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
@@ -540,9 +538,9 @@ const CandidateLayout = () => {
               <Icon paths="M6 18L18 6M6 6l12 12" className="h-6 w-6 text-white" />
             </button>
           </div>
-          <Sidebar 
-            navigation={navigationConfig} 
-            location={location} 
+          <Sidebar
+            navigation={navigationConfig}
+            location={location}
             isCollapsed={false}
             isMobileOpen={isMobileOpen}
             onMobileClose={() => setIsMobileOpen(false)}
@@ -554,19 +552,19 @@ const CandidateLayout = () => {
       {/* Desktop sidebar */}
       <div className={`hidden lg:flex lg:flex-shrink-0 transition-all duration-300 ${isCollapsed ? 'lg:w-20' : 'lg:w-64'}`}>
         <div className="flex flex-col w-full">
-          <Sidebar 
-            navigation={navigationConfig} 
-            location={location} 
+          <Sidebar
+            navigation={navigationConfig}
+            location={location}
             isCollapsed={isCollapsed}
             isMobileOpen={false}
-            onMobileClose={() => {}}
+            onMobileClose={() => { }}
           />
         </div>
       </div>
 
       {/* Main content */}
       <div className="flex flex-col w-0 flex-1 overflow-hidden">
-        <Header 
+        <Header
           onToggleSidebar={() => setIsCollapsed(!isCollapsed)}
           onMobileMenuToggle={() => setIsMobileOpen(!isMobileOpen)}
           isCollapsed={isCollapsed}
@@ -574,7 +572,7 @@ const CandidateLayout = () => {
           onLogout={handleLogout}
           onAvatarUpdate={handleAvatarUpdate}
         />
-        
+
         <main className="flex-1 relative overflow-y-auto focus:outline-none bg-gray-50">
           <div className="py-6">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">

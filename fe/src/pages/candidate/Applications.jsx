@@ -12,7 +12,7 @@ const CandidateApplications = () => {
   const [filter, setFilter] = useState('all');
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  
+
   // Helper to get full URL for uploaded files
   const getFileUrl = (path) => {
     if (!path) return null;
@@ -32,7 +32,7 @@ const CandidateApplications = () => {
     try {
       setLoading(true);
       const response = await candidateService.getCandidateApplications();
-      
+
       if (response.success) {
         setApplications(response.data.data || response.data);
       }
@@ -59,10 +59,10 @@ const CandidateApplications = () => {
     try {
       await candidateService.withdrawApplication(applicationId);
       toast.success('Đã rút đơn ứng tuyển thành công');
-      
+
       // Remove from list
       setApplications(applications.filter(app => app._id !== applicationId));
-      
+
       // Close modal if open
       if (selectedApplication?._id === applicationId) {
         setShowDetailModal(false);
@@ -101,7 +101,7 @@ const CandidateApplications = () => {
       rejected: 'bg-red-100 text-red-800',
       withdrawn: 'bg-gray-100 text-gray-800'
     };
-    
+
     const labels = {
       pending: 'Chờ duyệt',
       interview: 'Phỏng vấn',
@@ -117,8 +117,8 @@ const CandidateApplications = () => {
     );
   };
 
-  const filteredApplications = filter === 'all' 
-    ? applications 
+  const filteredApplications = filter === 'all'
+    ? applications
     : applications.filter(app => app.application_status === filter);
 
   const statsData = {
@@ -211,7 +211,7 @@ const CandidateApplications = () => {
                     <FiBriefcase className="w-4 h-4 mr-2" />
                     {application.job_id?.recruiter_id?.company_name || 'N/A'}
                   </p>
-                  
+
                   <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
                     <span className="flex items-center">
                       <FiDollarSign className="w-4 h-4 mr-1" />
@@ -278,7 +278,7 @@ const CandidateApplications = () => {
 
       {/* Application Detail Modal */}
       {showDetailModal && selectedApplication && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">

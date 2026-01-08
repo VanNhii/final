@@ -262,8 +262,8 @@ const EmailTemplates = () => {
     selectedType === "all"
       ? templates
       : templates.filter(
-          (template) => getTemplateType(template) === selectedType
-        );
+        (template) => getTemplateType(template) === selectedType
+      );
 
   if (loading) {
     return (
@@ -526,17 +526,16 @@ const EmailTemplates = () => {
                       <button
                         onClick={() => toggleStatus(getTemplateId(template))}
                         disabled={actionLoading.status[getTemplateId(template)]}
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          getTemplateStatus(template)
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getTemplateStatus(template)
                             ? "bg-green-100 text-green-800"
                             : "bg-red-100 text-red-800"
-                        } hover:opacity-80 disabled:opacity-50`}
+                          } hover:opacity-80 disabled:opacity-50`}
                       >
                         {actionLoading.status[getTemplateId(template)]
                           ? "Đang cập nhật..."
                           : getTemplateStatus(template)
-                          ? "Hoạt động"
-                          : "Tạm dừng"}
+                            ? "Hoạt động"
+                            : "Tạm dừng"}
                       </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -552,7 +551,7 @@ const EmailTemplates = () => {
                           </svg>
                         </button>
                         {/* Xem trước */}
-                        <button 
+                        <button
                           className="p-2 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors"
                           title="Xem trước"
                         >
@@ -565,11 +564,10 @@ const EmailTemplates = () => {
                         <button
                           onClick={() => toggleStatus(getTemplateId(template))}
                           disabled={actionLoading.status[getTemplateId(template)]}
-                          className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                            getTemplateStatus(template)
+                          className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${getTemplateStatus(template)
                               ? 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50'
                               : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
-                          }`}
+                            }`}
                           title={getTemplateStatus(template) ? 'Tạm dừng' : 'Kích hoạt'}
                         >
                           {actionLoading.status[getTemplateId(template)] ? (
@@ -617,7 +615,7 @@ const EmailTemplates = () => {
       </div>
 
       {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-[800px] shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -723,8 +721,8 @@ const EmailTemplates = () => {
                         ? "Đang cập nhật..."
                         : "Đang tạo..."
                       : editingTemplate
-                      ? "Cập nhật"
-                      : "Tạo template"}
+                        ? "Cập nhật"
+                        : "Tạo template"}
                   </button>
                 </div>
               </form>

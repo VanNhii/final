@@ -53,7 +53,7 @@ const navigationConfig = [
     href: '/admin/subscriptions',
     icon: 'M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z',
   },
- 
+
   {
     name: 'Thông báo hệ thống',
     href: '/admin/notifications',
@@ -64,7 +64,7 @@ const navigationConfig = [
     href: '/admin/analytics',
     icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
   },
-   
+
   {
     name: 'Cài đặt hệ thống',
     href: '/admin/settings',
@@ -86,10 +86,10 @@ const Icon = ({ paths, className = "w-6 h-6" }) => (
 // Navigation item component
 const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
   const baseClasses = "group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 mb-1";
-  const activeClasses = isActive 
-    ? "bg-blue-50 text-blue-600 shadow-sm" 
+  const activeClasses = isActive
+    ? "bg-blue-50 text-blue-600 shadow-sm"
     : "text-gray-600 hover:bg-gray-50 hover:text-blue-600 hover:translate-x-1";
-  
+
   return (
     <Link
       to={item.href}
@@ -98,9 +98,9 @@ const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
       onClick={onClick}
     >
       <div className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
-        <Icon 
-          paths={item.icon} 
-          className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'}`} 
+        <Icon
+          paths={item.icon}
+          className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'}`}
         />
       </div>
       {!isCollapsed && <span className="truncate font-medium">{item.name}</span>}
@@ -109,7 +109,7 @@ const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
 };
 
 // Sidebar component
-const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {  
+const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm transition-all duration-300">
       <div className="flex-1 flex flex-col pt-6 pb-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
@@ -148,12 +148,12 @@ const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {
 };
 
 // Header component
-const Header = ({ 
-  user, 
-  sidebarCollapsed, 
-  onSidebarToggle, 
-  onMobileSidebarOpen, 
-  onLogout 
+const Header = ({
+  user,
+  sidebarCollapsed,
+  onSidebarToggle,
+  onMobileSidebarOpen,
+  onLogout
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -194,7 +194,7 @@ const Header = ({
     try {
       const response = await adminService.markNotificationAsRead(notificationId);
       if (response?.success || response?.data?.success) {
-        setNotifications(prev => 
+        setNotifications(prev =>
           prev.map(n => n._id === notificationId ? { ...n, is_read: true } : n)
         );
         setUnreadCount(prev => Math.max(0, prev - 1));
@@ -269,19 +269,19 @@ const Header = ({
             >
               <Icon paths="M4 6h16M4 12h16M4 18h16" className="h-6 w-6" />
             </button>
-            
+
             {/* Desktop sidebar collapse toggle */}
             <button
               type="button"
               className="hidden lg:inline-flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all duration-200"
               onClick={onSidebarToggle}
             >
-              <Icon 
-                paths={sidebarCollapsed 
-                  ? "M13 5l7 7-7 7M5 5l7 7-7 7" 
+              <Icon
+                paths={sidebarCollapsed
+                  ? "M13 5l7 7-7 7M5 5l7 7-7 7"
                   : "M11 19l-7-7 7-7m8 14l-7-7 7-7"
-                } 
-                className="h-5 w-5" 
+                }
+                className="h-5 w-5"
               />
             </button>
           </div>
@@ -289,7 +289,7 @@ const Header = ({
           <div className="flex items-center space-x-4">
             {/* Notifications */}
             <div className="relative" ref={notificationRef}>
-              <button 
+              <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className="relative p-2 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 rounded-lg transition-colors duration-200"
               >
@@ -316,8 +316,8 @@ const Header = ({
                             Đọc tất cả
                           </button>
                         )}
-                        <Link 
-                          to="/admin/notifications" 
+                        <Link
+                          to="/admin/notifications"
                           className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                           onClick={() => setShowNotifications(false)}
                         >
@@ -326,7 +326,7 @@ const Header = ({
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="max-h-96 overflow-y-auto">
                     {loadingNotifications ? (
                       <div className="p-4 text-center text-gray-500">
@@ -337,14 +337,12 @@ const Header = ({
                         <div
                           key={notification._id}
                           onClick={() => !notification.is_read && markAsRead(notification._id)}
-                          className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                            !notification.is_read ? 'bg-primary-50' : ''
-                          }`}
+                          className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${!notification.is_read ? 'bg-primary-50' : ''
+                            }`}
                         >
                           <div className="flex items-start">
-                            <div className={`flex-shrink-0 h-2 w-2 rounded-full mt-2 mr-3 ${
-                              !notification.is_read ? 'bg-primary-500' : 'bg-gray-300'
-                            }`}></div>
+                            <div className={`flex-shrink-0 h-2 w-2 rounded-full mt-2 mr-3 ${!notification.is_read ? 'bg-primary-500' : 'bg-gray-300'
+                              }`}></div>
                             <div className="flex-1 min-w-0">
                               <p className={`text-sm ${!notification.is_read ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
                                 {notification.title}
@@ -406,7 +404,7 @@ const MobileSidebar = ({ isOpen, onClose, children }) => {
     } else {
       document.body.style.overflow = 'unset';
     }
-    
+
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -416,9 +414,9 @@ const MobileSidebar = ({ isOpen, onClose, children }) => {
 
   return (
     <div className="fixed inset-0 flex z-50 lg:hidden">
-      <div 
-        className="fixed inset-0 bg-gray-600 bg-opacity-75 transition-opacity" 
-        onClick={onClose} 
+      <div
+        className="fixed inset-0 bg-white/30 backdrop-blur-sm transition-opacity"
+        onClick={onClose}
       />
       <div className="relative flex-1 flex flex-col max-w-xs w-full bg-white">
         <div className="absolute top-0 right-0 -mr-12 pt-2">
@@ -440,7 +438,7 @@ const AdminLayout = () => {
   // State management
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  
+
   // Redux and routing
   const { user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
@@ -453,7 +451,7 @@ const AdminLayout = () => {
       if (window.innerWidth >= 1024) { // lg breakpoint
         setSidebarOpen(false);
       }
-      
+
       // Auto-collapse on medium screens
       if (window.innerWidth < 1024 && window.innerWidth >= 768) {
         setSidebarCollapsed(true);
@@ -479,7 +477,7 @@ const AdminLayout = () => {
     }
   }, [sidebarCollapsed]);
 
- 
+
   // Handlers
   const handleLogout = () => {
     dispatch(logout());
@@ -513,22 +511,20 @@ const AdminLayout = () => {
       </MobileSidebar>
 
       {/* Desktop Sidebar */}
-      <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-all duration-300 z-40 ${
-        sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
-      }`}>
+      <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col transition-all duration-300 z-40 ${sidebarCollapsed ? 'lg:w-20' : 'lg:w-64'
+        }`}>
         <Sidebar
           navigation={navigationConfig}
           location={location}
           isCollapsed={sidebarCollapsed}
           isMobileOpen={false}
-          onMobileClose={() => {}}
+          onMobileClose={() => { }}
         />
       </div>
 
       {/* Main Content */}
-      <div className={`flex flex-col min-h-screen transition-all duration-300 ${
-        sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
-      }`}>
+      <div className={`flex flex-col min-h-screen transition-all duration-300 ${sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-64'
+        }`}>
         {/* Header */}
         <Header
           user={user}

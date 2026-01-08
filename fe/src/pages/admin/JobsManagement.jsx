@@ -45,24 +45,24 @@ const JobsManagement = () => {
       } else {
         setTableLoading(true);
       }
-      
+
       // Build query parameters
       const params = {
         page: filters.page,
         limit: filters.limit
       };
-      
+
       if (filters.search) params.search = filters.search;
       if (filters.status) params.status = filters.status;
       if (filters.category) params.category_id = filters.category;
 
       const response = await adminService.getJobs(params);
-      
+
       if (response.success) {
         setJobs(response.data || []);
         setTotalJobs(response.pagination?.total || 0);
         setPagination(response.pagination || {});
-        
+
         // Use stats from backend if available, otherwise fallback
         if (response.stats) {
           setStats(response.stats);
@@ -82,7 +82,7 @@ const JobsManagement = () => {
     } catch (error) {
       console.error('Error fetching jobs:', error);
       toast.error('Không thể tải danh sách việc làm');
-      
+
       // Fallback to empty state
       setJobs([]);
       setTotalJobs(0);
@@ -107,7 +107,7 @@ const JobsManagement = () => {
   const handleStatusChange = async (jobId, newStatus, reason = '') => {
     try {
       setActionLoading(prev => ({ ...prev, [jobId]: true }));
-      
+
       const response = await adminService.updateJobStatus(jobId, {
         status: newStatus,
         reason: reason || `Cập nhật trạng thái thành ${newStatus} bởi admin`
@@ -126,7 +126,7 @@ const JobsManagement = () => {
         };
 
         toast.success(`Đã ${statusLabels[newStatus]} tin tuyển dụng`);
-        
+
         // Refresh stats
         fetchJobs();
       } else {
@@ -169,13 +169,13 @@ const JobsManagement = () => {
         formatDate(job.application_deadline || job.deadline),
         formatDate(job.created_at)
       ]);
-      
+
       // Create CSV string with BOM for Excel UTF-8 support
       const BOM = '\uFEFF';
-      const csvContent = BOM + [headers, ...rows].map(row => 
+      const csvContent = BOM + [headers, ...rows].map(row =>
         row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
       ).join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -193,7 +193,7 @@ const JobsManagement = () => {
   const handleGenerateReport = async () => {
     try {
       const reportDate = new Date().toLocaleDateString('vi-VN');
-      
+
       // Create report summary
       const summaryHeaders = ['Thông tin báo cáo', 'Giá trị'];
       const summaryRows = [
@@ -203,7 +203,7 @@ const JobsManagement = () => {
         ['Đã duyệt', stats.active],
         ['Từ chối', stats.rejected]
       ];
-      
+
       // Create job details
       const detailHeaders = ['STT', 'Tiêu đề', 'Công ty', 'Trạng thái', 'Số đơn ứng tuyển', 'Lượt xem', 'Hạn nộp'];
       const detailRows = jobs.map((job, index) => [
@@ -215,19 +215,19 @@ const JobsManagement = () => {
         job.views || 0,
         formatDate(job.application_deadline || job.deadline)
       ]);
-      
+
       // Combine into CSV
       const BOM = '\uFEFF';
-      const csvContent = BOM + 
+      const csvContent = BOM +
         'BÁO CÁO VIỆC LÀM\n\n' +
-        [summaryHeaders, ...summaryRows].map(row => 
+        [summaryHeaders, ...summaryRows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n') +
         '\n\nCHI TIẾT VIỆC LÀM\n' +
-        [detailHeaders, ...detailRows].map(row => 
+        [detailHeaders, ...detailRows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -248,16 +248,16 @@ const JobsManagement = () => {
       return;
     }
 
-    const confirmMessage = action === 'approved' 
+    const confirmMessage = action === 'approved'
       ? `Bạn có chắc muốn duyệt ${selectedJobs.length} việc làm đã chọn?`
       : `Bạn có chắc muốn từ chối ${selectedJobs.length} việc làm đã chọn?`;
-    
+
     if (!window.confirm(confirmMessage)) return;
 
     try {
       setActionLoading(prev => ({ ...prev, bulk: true }));
-      
-      const promises = selectedJobs.map(jobId => 
+
+      const promises = selectedJobs.map(jobId =>
         adminService.updateJobStatus(jobId, {
           status: action,
           reason: `Cập nhật hàng loạt bởi admin`
@@ -265,7 +265,7 @@ const JobsManagement = () => {
       );
 
       await Promise.all(promises);
-      
+
       // Update local state
       setJobs(jobs.map(job => {
         const jobId = job._id || job.id;
@@ -277,7 +277,7 @@ const JobsManagement = () => {
 
       setSelectedJobs([]);
       toast.success(`${action === 'approved' ? 'Duyệt' : 'Từ chối'} ${selectedJobs.length} việc làm thành công`);
-      
+
       // Refresh data
       fetchJobs();
     } catch (error) {
@@ -313,9 +313,9 @@ const JobsManagement = () => {
   };
 
   const getRecruiterName = (job) => {
-    return job.recruiter_id?.user_id?.full_name || 
-           job.recruiter_id?.user_id?.first_name + ' ' + job.recruiter_id?.user_id?.last_name ||
-           job.recruiter?.name || 'N/A';
+    return job.recruiter_id?.user_id?.full_name ||
+      job.recruiter_id?.user_id?.first_name + ' ' + job.recruiter_id?.user_id?.last_name ||
+      job.recruiter?.name || 'N/A';
   };
 
   const getCategoryName = (job) => {
@@ -416,7 +416,7 @@ const JobsManagement = () => {
           <p className="mt-1 text-gray-600">Duyệt và quản lý các tin tuyển dụng</p>
         </div>
         <div className="mt-4 sm:mt-0 flex space-x-3">
-          <button 
+          <button
             onClick={handleExportJobs}
             className="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors"
           >
@@ -531,7 +531,7 @@ const JobsManagement = () => {
             </div>
           </div>
         )}
-        
+
         <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-gray-900">
@@ -542,14 +542,14 @@ const JobsManagement = () => {
                 <span className="text-sm text-gray-600">
                   Đã chọn {selectedJobs.length} việc làm
                 </span>
-                <button 
+                <button
                   onClick={() => handleBulkAction('approved')}
                   disabled={actionLoading.bulk}
                   className="text-green-600 hover:text-green-700 text-sm font-medium disabled:opacity-50"
                 >
                   {actionLoading.bulk ? 'Đang xử lý...' : 'Duyệt hàng loạt'}
                 </button>
-                <button 
+                <button
                   onClick={() => handleBulkAction('rejected')}
                   disabled={actionLoading.bulk}
                   className="text-red-600 hover:text-red-700 text-sm font-medium disabled:opacity-50"
@@ -598,7 +598,7 @@ const JobsManagement = () => {
                 jobs.map((job) => {
                   const jobId = getJobId(job);
                   const isActionLoading = actionLoading[jobId];
-                  
+
                   return (
                     <tr key={jobId} className="hover:bg-gray-50">
                       <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
@@ -770,14 +770,14 @@ const JobsManagement = () => {
         {/* Pagination */}
         <div className="bg-white px-4 sm:px-6 py-3 flex items-center justify-between border-t border-gray-200">
           <div className="flex-1 flex justify-between sm:hidden">
-            <button 
+            <button
               onClick={() => handlePageChange(Math.max(1, filters.page - 1))}
               disabled={filters.page <= 1}
               className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
             >
               Trước
             </button>
-            <button 
+            <button
               onClick={() => handlePageChange(filters.page + 1)}
               disabled={!pagination.hasNext}
               className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
@@ -795,7 +795,7 @@ const JobsManagement = () => {
             </div>
             <div>
               <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                <button 
+                <button
                   onClick={() => handlePageChange(Math.max(1, filters.page - 1))}
                   disabled={filters.page <= 1}
                   className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
@@ -804,28 +804,27 @@ const JobsManagement = () => {
                     <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {/* Page numbers */}
                 {pagination.totalPages && [...Array(Math.min(5, pagination.totalPages))].map((_, index) => {
                   const pageNumber = Math.max(1, filters.page - 2) + index;
                   if (pageNumber > pagination.totalPages) return null;
-                  
+
                   return (
                     <button
                       key={pageNumber}
                       onClick={() => handlePageChange(pageNumber)}
-                      className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
-                        pageNumber === filters.page
+                      className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${pageNumber === filters.page
                           ? 'bg-primary-50 border-primary-500 text-primary-600'
                           : 'bg-white text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       {pageNumber}
                     </button>
                   );
                 })}
-                
-                <button 
+
+                <button
                   onClick={() => handlePageChange(filters.page + 1)}
                   disabled={!pagination.hasNext}
                   className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
@@ -842,7 +841,7 @@ const JobsManagement = () => {
 
       {/* Job Detail Modal */}
       {showJobModal && selectedJob && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
           <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">Chi tiết việc làm</h3>
@@ -855,7 +854,7 @@ const JobsManagement = () => {
                 </svg>
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {/* Job Title and Status */}
               <div className="border-b pb-4">

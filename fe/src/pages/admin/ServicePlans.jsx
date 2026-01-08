@@ -32,9 +32,9 @@ const ServicePlans = () => {
     try {
       setLoading(true);
       const response = await adminService.getServicePlans();
-      
+
       console.log('Service Plans API Response:', response.data); // Debug log
-      
+
       if (response.data) {
         const plansData = response.data || [];
         console.log('Service Plans Data:', plansData); // Debug log
@@ -53,10 +53,10 @@ const ServicePlans = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     try {
       setActionLoading(prev => ({ ...prev, submit: true }));
-      
+
       const planData = {
         name: formData.name,
         description: formData.description,
@@ -82,7 +82,7 @@ const ServicePlans = () => {
       } else {
         response = await adminService.createServicePlan(planData);
       }
-      
+
       if (response.success || response.data?.success) {
         toast.success(editingPlan ? 'Cập nhật gói dịch vụ thành công' : 'Tạo gói dịch vụ thành công');
         setIsModalOpen(false);
@@ -143,9 +143,9 @@ const ServicePlans = () => {
     if (window.confirm('Bạn có chắc chắn muốn xóa gói dịch vụ này?')) {
       try {
         setActionLoading(prev => ({ ...prev, [planId]: true }));
-        
+
         const response = await adminService.deleteServicePlan(planId);
-        
+
         if (response.success || response.data?.success) {
           toast.success('Xóa gói dịch vụ thành công');
           fetchServicePlans();
@@ -164,9 +164,9 @@ const ServicePlans = () => {
   const toggleStatus = async (planId) => {
     try {
       setActionLoading(prev => ({ ...prev, [planId]: true }));
-      
+
       const response = await adminService.toggleServicePlanStatus(planId);
-      
+
       if (response.success || response.data?.success) {
         toast.success('Cập nhật trạng thái thành công');
         fetchServicePlans();
@@ -294,7 +294,7 @@ const ServicePlans = () => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h3 className="text-lg font-medium text-gray-900">Danh sách gói dịch vụ</h3>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -324,7 +324,7 @@ const ServicePlans = () => {
                 servicePlans.map((plan) => {
                   const planId = getPlanId(plan);
                   const isActionLoading = actionLoading[planId];
-                  
+
                   return (
                     <tr key={planId}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -345,11 +345,10 @@ const ServicePlans = () => {
                         <div className="text-sm text-gray-900">{getSubscriptionCount(plan)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          getPlanStatus(plan)
-                            ? 'bg-green-100 text-green-800' 
+                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getPlanStatus(plan)
+                            ? 'bg-green-100 text-green-800'
                             : 'bg-red-100 text-red-800'
-                        }`}>
+                          }`}>
                           {getPlanStatus(plan) ? 'Hoạt động' : 'Tạm dừng'}
                         </span>
                       </td>
@@ -369,11 +368,10 @@ const ServicePlans = () => {
                           <button
                             onClick={() => toggleStatus(planId)}
                             disabled={isActionLoading}
-                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                              getPlanStatus(plan)
+                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${getPlanStatus(plan)
                                 ? 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50'
                                 : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
-                            }`}
+                              }`}
                             title={getPlanStatus(plan) ? 'Tạm dừng' : 'Kích hoạt'}
                           >
                             {isActionLoading ? (
@@ -435,7 +433,7 @@ const ServicePlans = () => {
 
       {/* Modal thêm/sửa gói dịch vụ */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
           <div className="relative top-10 mx-auto p-5 border w-[800px] shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
@@ -520,7 +518,7 @@ const ServicePlans = () => {
                 {/* Tính năng */}
                 <div className="border-t pt-4">
                   <h4 className="text-md font-medium text-gray-900 mb-3">Tính năng</h4>
-                  
+
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">

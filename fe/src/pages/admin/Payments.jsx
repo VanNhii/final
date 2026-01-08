@@ -25,7 +25,7 @@ const Payments = () => {
   const handleExportPayments = async () => {
     try {
       const reportDate = new Date().toLocaleDateString('vi-VN');
-      
+
       // Summary section
       const summaryHeaders = ['Thông tin báo cáo', 'Giá trị'];
       const summaryRows = [
@@ -35,7 +35,7 @@ const Payments = () => {
         ['Đang xử lý', stats.pending],
         ['Thất bại', stats.failed]
       ];
-      
+
       // Details section
       const headers = ['STT', 'Mã giao dịch', 'Nhà tuyển dụng', 'Gói dịch vụ', 'Số tiền', 'Phương thức', 'Trạng thái', 'Ngày giao dịch'];
       const rows = payments.map((payment, index) => [
@@ -45,23 +45,23 @@ const Payments = () => {
         getServicePlanInfo(payment),
         formatCurrency(payment.amount, payment.currency || 'VND'),
         getPaymentMethodLabel(payment.payment_method || payment.paymentMethod),
-        (payment.payment_status || payment.status) === 'completed' ? 'Hoàn thành' : 
-        (payment.payment_status || payment.status) === 'pending' ? 'Đang xử lý' : 
-        (payment.payment_status || payment.status) === 'failed' ? 'Thất bại' : payment.payment_status || payment.status,
+        (payment.payment_status || payment.status) === 'completed' ? 'Hoàn thành' :
+          (payment.payment_status || payment.status) === 'pending' ? 'Đang xử lý' :
+            (payment.payment_status || payment.status) === 'failed' ? 'Thất bại' : payment.payment_status || payment.status,
         payment.payment_date || payment.paymentDate || new Date(payment.created_at).toLocaleDateString('vi-VN')
       ]);
-      
+
       const BOM = '\uFEFF';
-      const csvContent = BOM + 
+      const csvContent = BOM +
         'BÁO CÁO THANH TOÁN\n\n' +
-        [summaryHeaders, ...summaryRows].map(row => 
+        [summaryHeaders, ...summaryRows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n') +
         '\n\nCHI TIẾT GIAO DỊCH\n' +
-        [headers, ...rows].map(row => 
+        [headers, ...rows].map(row =>
           row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')
         ).join('\n');
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -80,21 +80,21 @@ const Payments = () => {
     try {
       setLoading(true);
       const params = {};
-      
+
       if (filter !== 'all') {
         params.payment_status = filter;
       }
-      
+
       const response = await adminService.getPayments(params);
-      
+
       if (response.data) {
         const paymentsData = response.data || [];
         setPayments(paymentsData);
-        
+
         // Calculate stats
         const completedPayments = paymentsData.filter(p => p.payment_status === 'completed');
         const revenue = completedPayments.reduce((sum, p) => sum + (parseInt(p.amount) || 0), 0);
-        
+
         setTotalRevenue(revenue);
         setStats({
           total: paymentsData.length,
@@ -117,18 +117,18 @@ const Payments = () => {
   const handleStatusUpdate = async (paymentId, newStatus) => {
     try {
       setActionLoading(prev => ({ ...prev, [paymentId]: true }));
-      
+
       const response = await adminService.updatePaymentStatus(paymentId, {
         payment_status: newStatus
       });
-      
+
       if (response.success || response.data?.success) {
-        setPayments(payments.map(payment => 
+        setPayments(payments.map(payment =>
           (payment._id === paymentId || payment.id === paymentId)
             ? { ...payment, payment_status: newStatus }
             : payment
         ));
-        
+
         toast.success('Đã cập nhật trạng thái thanh toán');
         fetchPayments(); // Refresh to update stats
       } else {
@@ -145,18 +145,18 @@ const Payments = () => {
   const handleRefund = async (paymentId, refundAmount) => {
     try {
       setActionLoading(prev => ({ ...prev, [paymentId]: true }));
-      
+
       const response = await adminService.processRefund(paymentId, {
         refund_amount: refundAmount
       });
-      
+
       if (response.success || response.data?.success) {
-        setPayments(payments.map(payment => 
+        setPayments(payments.map(payment =>
           (payment._id === paymentId || payment.id === paymentId)
             ? { ...payment, payment_status: 'refunded', refund_amount: refundAmount }
             : payment
         ));
-        
+
         toast.success('Đã xử lý hoàn tiền thành công');
         fetchPayments(); // Refresh to update stats
       } else {
@@ -204,7 +204,7 @@ const Payments = () => {
       failed: 'bg-red-100 text-red-800',
       refunded: 'bg-blue-100 text-blue-800'
     };
-    
+
     const labels = {
       completed: 'Hoàn thành',
       pending: 'Đang xử lý',
@@ -239,8 +239,8 @@ const Payments = () => {
     return `${amount} ${currency}`;
   };
 
-  const filteredPayments = filter === 'all' 
-    ? payments 
+  const filteredPayments = filter === 'all'
+    ? payments
     : payments.filter(payment => (payment.payment_status || payment.status) === filter);
 
   if (loading) {
@@ -359,7 +359,7 @@ const Payments = () => {
                 <option value="failed">Thất bại</option>
                 <option value="refunded">Đã hoàn tiền</option>
               </select>
-              <button 
+              <button
                 onClick={handleExportPayments}
                 className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 text-sm"
               >
@@ -403,7 +403,7 @@ const Payments = () => {
                   const isActionLoading = actionLoading[paymentId];
                   const recruiterInfo = getRecruiterInfo(payment);
                   const servicePlan = getServicePlanInfo(payment);
-                  
+
                   return (
                     <tr key={paymentId}>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -437,7 +437,7 @@ const Payments = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center space-x-1">
-                          <button 
+                          <button
                             onClick={() => {
                               setSelectedPayment(payment);
                               setShowPaymentModal(true);
@@ -532,7 +532,7 @@ const Payments = () => {
 
       {/* Payment Detail Modal */}
       {showPaymentModal && selectedPayment && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-medium text-gray-900">Chi tiết giao dịch</h3>
@@ -545,7 +545,7 @@ const Payments = () => {
                 </svg>
               </button>
             </div>
-            
+
             <div className="space-y-4">
               {/* Transaction Info */}
               <div className="border-b pb-4">

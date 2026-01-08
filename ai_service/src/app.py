@@ -2176,13 +2176,24 @@ def recruiter_chat_general():
             rag_service.append_message(session_id, "user", question)
             rag_service.append_message(session_id, "assistant", msg)
             return api_err(msg, 400)
+        
         selected = last_jobs[pick]
         job_id = clean_text(selected.get("job_id"))
         selected_title = clean_text(selected.get("title") or selected.get("job_title") or "")
         city = clean_text(selected.get("city") or "")
         selection_preface = f"Ok, bạn đang quan tâm đến job **{selected_title}**" + (f" tại {city}." if city else ".")
+        
         rag_service.update_session_payload(session_id, {"job_id": job_id, "candidate_ids": [], "selected_job_title": selected_title})
-        payload = (rag_service.get_session(session_id) or {}).get("payload") or {}
+        
+        # Return confirmation message instead of continuing to ranking
+        msg = f"{selection_preface}\n\nBạn muốn mình làm gì tiếp theo?\n- Xếp hạng ứng viên\n- So sánh top 1 vs top 2\n- Gợi ý câu hỏi phỏng vấn"
+        rag_service.append_message(session_id, "user", question)
+        rag_service.append_message(session_id, "assistant", msg)
+        return api_ok({
+            "view": "recruiter_job_selected",
+            "result": {"job_id": job_id, "job_title": selected_title},
+            "state": session_to_state(rag_service.get_session(session_id) or {}, 20)
+        }, message=msg)
 
     candidate_ids = payload.get("candidate_ids") or candidate_ids
     if use_applications:

@@ -91,9 +91,27 @@ const CandidateInterviews = () => {
       });
 
       if (response.success) {
-        toast.success('Đã từ chối và hủy lịch phỏng vấn');
-        // Remove from list since it's deleted from database
-        setInterviews(interviews.filter(i => i._id !== selectedInterview._id));
+        toast.success('Đã từ chối lịch phỏng vấn. Lịch sẽ tự động xóa sau 7 ngày.');
+
+        // Update status instead of removing from list
+        const now = new Date();
+        const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+        setInterviews(interviews.map(i =>
+          i._id === selectedInterview._id
+            ? {
+              ...i,
+              candidate_confirmation: {
+                ...i.candidate_confirmation,
+                status: 'rejected',
+                message: rejectMessage,
+                rejected_at: now.toISOString(),
+                expires_at: expiresAt.toISOString()
+              }
+            }
+            : i
+        ));
+
         setShowRejectModal(false);
         setRejectMessage('');
         setSelectedInterview(null);
@@ -169,6 +187,14 @@ const CandidateInterviews = () => {
     return timeString || '';
   };
 
+  const getDaysUntilDeletion = (rejectedAt) => {
+    if (!rejectedAt) return null;
+    const expiryDate = new Date(new Date(rejectedAt).getTime() + 7 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const daysLeft = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
+    return daysLeft > 0 ? daysLeft : 0;
+  };
+
   const isUpcoming = (interview) => {
     const interviewDateTime = new Date(`${interview.interview_date} ${interview.interview_time}`);
     return interview.status === 'scheduled' && interviewDateTime > new Date();
@@ -176,7 +202,9 @@ const CandidateInterviews = () => {
 
   const filteredInterviews = filter === 'all'
     ? interviews
-    : interviews.filter(interview => interview.status === filter);
+    : filter === 'rejected'
+      ? interviews.filter(i => i.candidate_confirmation?.status === 'rejected')
+      : interviews.filter(interview => interview.status === filter);
 
   const upcomingInterviews = interviews.filter(isUpcoming);
 
@@ -283,6 +311,7 @@ const CandidateInterviews = () => {
               <option value="scheduled">Đã lên lịch</option>
               <option value="completed">Hoàn thành</option>
               <option value="cancelled">Đã hủy</option>
+              <option value="rejected">Đã từ chối</option>
             </select>
           </div>
         </div>
@@ -383,6 +412,35 @@ const CandidateInterviews = () => {
                       </div>
                     </div>
                   )}
+
+                  {/* Rejected Interview Warning */}
+                  {interview.candidate_confirmation?.status === 'rejected' && (
+                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <div className="flex items-start">
+                        <svg className="w-5 h-5 text-red-600 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-red-800">
+                            Đã từ chối phỏng vấn
+                          </p>
+                          <p className="text-xs text-red-600 mt-1">
+                            {(() => {
+                              const daysLeft = getDaysUntilDeletion(interview.candidate_confirmation.rejected_at);
+                              return daysLeft > 0
+                                ? `Lịch sẽ tự động xóa sau ${daysLeft} ngày`
+                                : 'Lịch sẽ sớm bị xóa';
+                            })()}
+                          </p>
+                          {interview.candidate_confirmation.message && (
+                            <p className="text-xs text-gray-600 mt-1 italic">
+                              Lý do: {interview.candidate_confirmation.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex flex-col space-y-2 ml-4">
@@ -457,7 +515,7 @@ const CandidateInterviews = () => {
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Xác nhận tham gia phỏng vấn</h3>
             <p className="text-gray-600 mb-4">
@@ -503,7 +561,7 @@ const CandidateInterviews = () => {
 
       {/* Reject Modal */}
       {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-4">Từ chối lịch phỏng vấn</h3>
             <p className="text-gray-600 mb-4">

@@ -593,332 +593,349 @@ const RecruiterMessages = () => {
       return `${Math.floor(diff / (1000 * 60))} phút trước`;
     } else if (hours < 24) {
       return `${Math.floor(hours)} giờ trước`;
-    } else {
-      return date.toLocaleDateString('vi-VN');
+      const msgDate = new Date(dateString);
+      const diffMs = now - msgDate;
+      const diffMins = Math.floor(diffMs / 60000);
+
+      if (diffMins < 1) return 'Vừa xong';
+      if (diffMins < 60) return `${diffMins} phút trước`;
+      if (diffMins < 1440) return `${Math.floor(diffMins / 60)} giờ trước`;
+
+      const diffDays = Math.floor(diffMins / 1440);
+      if (diffDays === 1) return 'Hôm qua';
+      if (diffDays < 7) return `${diffDays} ngày trước`;
+
+      return msgDate.toLocaleDateString('vi-VN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: msgDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      });
+    };
+
+    const filteredConversations = conversations.filter(conv => {
+      const matchesSearch = conv.userName.toLowerCase().includes(searchQuery.toLowerCase());
+
+      if (filter === 'unread') {
+        return matchesSearch && conv.unreadCount > 0;
+      }
+
+      return matchesSearch;
+    });
+
+    const activeConv = conversations.find(conv => conv.id === activeConversation);
+    const isTyping = activeConv && typingUsers[activeConv.userId];
+
+    const quickReplies = [
+      'Cảm ơn bạn đã quan tâm!',
+      'Chúng tôi sẽ xem xét và phản hồi trong thời gian sớm nhất.',
+      'Bạn có thể cung cấp thêm thông tin về kinh nghiệm không?',
+      'Chúng tôi muốn mời bạn tham gia phỏng vấn.',
+      'Bạn có thể bắt đầu làm việc khi nào?'
+    ];
+
+    if (loading) {
+      return (
+        <div className="flex h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Đang tải tin nhắn...</p>
+          </div>
+        </div>
+      );
     }
-  };
 
-  const formatMessageTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const filteredConversations = conversations.filter(conv => {
-    const matchesSearch = conv.userName.toLowerCase().includes(searchQuery.toLowerCase());
-
-    if (filter === 'unread') {
-      return matchesSearch && conv.unreadCount > 0;
-    }
-
-    return matchesSearch;
-  });
-
-  const activeConv = conversations.find(conv => conv.id === activeConversation);
-  const isTyping = activeConv && typingUsers[activeConv.userId];
-
-  const quickReplies = [
-    'Cảm ơn bạn đã quan tâm!',
-    'Chúng tôi sẽ xem xét và phản hồi trong thời gian sớm nhất.',
-    'Bạn có thể cung cấp thêm thông tin về kinh nghiệm không?',
-    'Chúng tôi muốn mời bạn tham gia phỏng vấn.',
-    'Bạn có thể bắt đầu làm việc khi nào?'
-  ];
-
-  if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Đang tải tin nhắn...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Conversations Sidebar */}
-      <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
-        {/* Header */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex justify-between items-center mb-4">
-            <h1 className="text-xl font-bold text-gray-900">Tin nhắn</h1>
-            <div className="flex items-center space-x-2">
-              {unreadCount > 0 && (
-                <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Tìm kiếm cuộc trò chuyện..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
-            />
-            <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
-
-          {/* Filters */}
-          <div className="flex space-x-2 mt-3">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded-full text-sm ${filter === 'all'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-            >
-              Tất cả
-            </button>
-            <button
-              onClick={() => setFilter('unread')}
-              className={`px-3 py-1 rounded-full text-sm ${filter === 'unread'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
-            >
-              Chưa đọc
-            </button>
-          </div>
-        </div>
-
-        {/* Conversations List */}
-        <div className="flex-1 overflow-y-auto">
-          {filteredConversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              onClick={() => {
-                setActiveConversation(conversation.id);
-                markConversationAsRead(conversation.id);
-              }}
-              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 relative group ${activeConversation === conversation.id ? 'bg-green-50 border-l-4 border-l-green-500' : ''
-                }`}
-            >
-              <div className="flex items-start space-x-3">
-                <div className="relative">
-                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                    {conversation.userAvatar ? (
-                      <img src={conversation.userAvatar} alt={conversation.userName} className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                      <span className="text-xl text-gray-400">👤</span>
-                    )}
-                  </div>
-                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conversation.status)}`}></div>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <h3 className="text-sm font-medium text-gray-900 truncate">{conversation.userName}</h3>
-                    <span className="text-xs text-gray-500">{formatTime(conversation.lastMessageTime)}</span>
-                  </div>
-                  <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
-
-                  <div className="flex justify-between items-center mt-2">
-                    <div className="flex items-center space-x-1">
-                      <span className="text-xs text-gray-500">{conversation.userRole === 'candidate' ? 'Ứng viên' : 'Nhà tuyển dụng'}</span>
-                    </div>
-                    {conversation.unreadCount > 0 && (
-                      <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                        {conversation.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
+      <div className="flex h-screen bg-gray-100">
+        {/* Conversations Sidebar */}
+        <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+          {/* Header */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-xl font-bold text-gray-900">Tin nhắn</h1>
+              <div className="flex items-center space-x-2">
+                {unreadCount > 0 && (
+                  <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
+                    {unreadCount}
+                  </span>
+                )}
               </div>
+            </div>
 
-              {/* Delete button - appears on hover */}
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Tìm kiếm cuộc trò chuyện..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500"
+              />
+              <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+
+            {/* Filters */}
+            <div className="flex space-x-2 mt-3">
               <button
-                onClick={(e) => deleteConversation(conversation.id, e)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                title="Xóa cuộc trò chuyện"
+                onClick={() => setFilter('all')}
+                className={`px-3 py-1 rounded-full text-sm ${filter === 'all'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
+                Tất cả
+              </button>
+              <button
+                onClick={() => setFilter('unread')}
+                className={`px-3 py-1 rounded-full text-sm ${filter === 'unread'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                  }`}
+              >
+                Chưa đọc
               </button>
             </div>
-          ))}
+          </div>
 
-          {filteredConversations.length === 0 && (
-            <div className="text-center py-8">
-              <svg className="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <p className="text-gray-500 text-sm">Không tìm thấy cuộc trò chuyện nào</p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {activeConv ? (
-          <>
-            {/* Chat Header */}
-            <div className="bg-white border-b border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
+          {/* Conversations List */}
+          <div className="flex-1 overflow-y-auto">
+            {filteredConversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                onClick={() => {
+                  setActiveConversation(conversation.id);
+                  markConversationAsRead(conversation.id);
+                }}
+                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 relative group ${activeConversation === conversation.id
+                  ? 'bg-green-50 border-l-4 border-l-green-500'
+                  : conversation.unreadCount > 0
+                    ? 'bg-red-50/30 border-l-4 border-l-red-400'
+                    : ''
+                  }`}
+              >
+                <div className="flex items-start space-x-3">
                   <div className="relative">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                      {activeConv.userAvatar ? (
-                        <img src={activeConv.userAvatar} alt={activeConv.userName} className="w-full h-full rounded-full object-cover" />
+                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                      {conversation.userAvatar ? (
+                        <img src={conversation.userAvatar} alt={conversation.userName} className="w-full h-full rounded-full object-cover" />
                       ) : (
-                        <span className="text-lg text-gray-400">👤</span>
+                        <span className="text-xl text-gray-400">👤</span>
                       )}
                     </div>
-                    <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${getStatusColor(activeConv.status)}`}></div>
+                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conversation.status)}`}></div>
                   </div>
-                  <div>
-                    <h2 className="text-lg font-medium text-gray-900">{activeConv.userName}</h2>
-                    <p className="text-sm text-gray-500">
-                      {activeConv.status === 'online' ? 'Đang hoạt động' : 'Không hoạt động'}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-1">
+                      <h3 className={`text-sm ${conversation.unreadCount > 0 ? 'font-bold' : 'font-medium'} text-gray-900 truncate`}>
+                        {conversation.userName}
+                      </h3>
+                      <span className="text-xs text-gray-500">{formatTime(conversation.lastMessageTime)}</span>
+                    </div>
+                    <p className={`text-sm ${conversation.unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'} truncate`}>
+                      {conversation.lastMessage}
                     </p>
+
+                    <div className="flex justify-between items-center mt-2">
+                      <div className="flex items-center space-x-1">
+                        <span className="text-xs text-gray-500">{conversation.userRole === 'candidate' ? 'Ứng viên' : 'Nhà tuyển dụng'}</span>
+                      </div>
+                      {conversation.unreadCount > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 animate-pulse">
+                          {conversation.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delete button - appears on hover */}
+                <button
+                  onClick={(e) => deleteConversation(conversation.id, e)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  title="Xóa cuộc trò chuyện"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+
+            {filteredConversations.length === 0 && (
+              <div className="text-center py-8">
+                <svg className="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p className="text-gray-500 text-sm">Không tìm thấy cuộc trò chuyện nào</p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col">
+          {activeConv ? (
+            <>
+              {/* Chat Header */}
+              <div className="bg-white border-b border-gray-200 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="relative">
+                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                        {activeConv.userAvatar ? (
+                          <img src={activeConv.userAvatar} alt={activeConv.userName} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          <span className="text-lg text-gray-400">👤</span>
+                        )}
+                      </div>
+                      <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${getStatusColor(activeConv.status)}`}></div>
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-medium text-gray-900">{activeConv.userName}</h2>
+                      <p className="text-sm text-gray-500">
+                        {activeConv.status === 'online' ? 'Đang hoạt động' : 'Không hoạt động'}
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {messages.map((message) => {
-                const isSentByMe = message.sender_id._id === user._id;
-                return (
-                  <div
-                    key={message._id}
-                    className={`flex ${isSentByMe ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isSentByMe
-                      ? 'bg-green-600 text-white'
-                      : 'bg-gray-200 text-gray-900'
-                      }`}>
-                      <p className="text-sm">{message.content}</p>
-                      <div className={`flex items-center justify-between mt-1 ${isSentByMe ? 'text-green-100' : 'text-gray-500'
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {messages.map((message) => {
+                  const isSentByMe = message.sender_id._id === user._id;
+                  return (
+                    <div
+                      key={message._id}
+                      className={`flex ${isSentByMe ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isSentByMe
+                        ? 'bg-green-600 text-white'
+                        : 'bg-gray-200 text-gray-900'
                         }`}>
-                        <span className="text-xs">{formatMessageTime(message.created_at)}</span>
-                        {isSentByMe && (
-                          <div className="ml-2">
-                            {message.is_read ? (
-                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                              </svg>
-                            ) : (
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                        )}
+                        <p className="text-sm">{message.content}</p>
+                        <div className={`flex items-center justify-between mt-1 ${isSentByMe ? 'text-green-100' : 'text-gray-500'
+                          }`}>
+                          <span className="text-xs">{formatMessageTime(message.created_at)}</span>
+                          {isSentByMe && (
+                            <div className="ml-2">
+                              {message.is_read ? (
+                                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="bg-gray-200 px-4 py-2 rounded-lg">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-              {isTyping && (
-                <div className="flex justify-start">
-                  <div className="bg-gray-200 px-4 py-2 rounded-lg">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    </div>
-                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Quick Replies */}
+              <div className="bg-gray-50 px-4 py-2">
+                <div className="flex space-x-2 overflow-x-auto">
+                  {quickReplies.map((reply, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setNewMessage(reply)}
+                      className="flex-shrink-0 px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100"
+                    >
+                      {reply}
+                    </button>
+                  ))}
                 </div>
-              )}
-              <div ref={messagesEndRef} />
-            </div>
+              </div>
 
-            {/* Quick Replies */}
-            <div className="bg-gray-50 px-4 py-2">
-              <div className="flex space-x-2 overflow-x-auto">
-                {quickReplies.map((reply, index) => (
+              {/* Message Input */}
+              <div className="bg-white border-t border-gray-200 p-4">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={handleInputChange}
+                    onKeyPress={(e) => e.key === 'Enter' && !sending && sendMessage()}
+                    placeholder="Nhập tin nhắn..."
+                    disabled={sending}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100"
+                  />
                   <button
-                    key={index}
-                    onClick={() => setNewMessage(reply)}
-                    className="flex-shrink-0 px-3 py-1 bg-white border border-gray-300 rounded-full text-sm text-gray-700 hover:bg-gray-100"
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || sending}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
                   >
-                    {reply}
+                    {sending ? 'Đang gửi...' : 'Gửi'}
                   </button>
-                ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Chọn một cuộc trò chuyện</h3>
+                <p className="text-gray-500">Chọn một cuộc trò chuyện từ danh sách bên trái để bắt đầu nhắn tin.</p>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Message Input */}
-            <div className="bg-white border-t border-gray-200 p-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={handleInputChange}
-                  onKeyPress={(e) => e.key === 'Enter' && !sending && sendMessage()}
-                  placeholder="Nhập tin nhắn..."
-                  disabled={sending}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100"
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={!newMessage.trim() || sending}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  {sending ? 'Đang gửi...' : 'Gửi'}
-                </button>
+        {/* Delete Confirmation Modal */}
+        {deleteId && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 transform transition-all animate-fade-in">
+              <div className="text-center">
+                <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                  <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Xóa cuộc trò chuyện?</h3>
+                <p className="text-gray-600 mb-6">
+                  Bạn có chắc chắn muốn xóa cuộc trò chuyện này? Tất cả tin nhắn sẽ bị xóa vĩnh viễn và không thể khôi phục.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setDeleteId(null)}
+                    className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={confirmDelete}
+                    className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors"
+                  >
+                    Xóa
+                  </button>
+                </div>
               </div>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Chọn một cuộc trò chuyện</h3>
-              <p className="text-gray-500">Chọn một cuộc trò chuyện từ danh sách bên trái để bắt đầu nhắn tin.</p>
             </div>
           </div>
         )}
-      </div>
 
-      {/* Delete Confirmation Modal */}
-      {deleteId && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 transform transition-all animate-fade-in">
-            <div className="text-center">
-              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Xóa cuộc trò chuyện?</h3>
-              <p className="text-gray-600 mb-6">
-                Bạn có chắc chắn muốn xóa cuộc trò chuyện này? Tất cả tin nhắn sẽ bị xóa vĩnh viễn và không thể khôi phục.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeleteId(null)}
-                  className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={confirmDelete}
-                  className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors"
-                >
-                  Xóa
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add custom styles for animations */}
-      <style>{`
+        {/* Add custom styles for animations */}
+        <style>{`
         @keyframes fade-in {
           from {
             opacity: 0;
@@ -933,8 +950,8 @@ const RecruiterMessages = () => {
           animation: fade-in 0.2s ease-out;
         }
       `}</style>
-    </div>
-  );
-};
+      </div>
+    );
+  };
 
-export default RecruiterMessages;
+  export default RecruiterMessages;

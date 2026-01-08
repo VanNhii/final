@@ -570,9 +570,38 @@ const CandidateMessages = () => {
     }
   };
 
-  const formatMessageTime = (timestamp) => {
-    const date = new Date(timestamp);
-    return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleString('vi-VN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  };
+
+  const formatMessageTime = (dateString) => {
+    if (!dateString) return '';
+    const now = new Date();
+    const msgDate = new Date(dateString);
+    const diffMs = now - msgDate;
+    const diffMins = Math.floor(diffMs / 60000);
+
+    if (diffMins < 1) return 'Vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    if (diffMins < 1440) return `${Math.floor(diffMins / 60)} giờ trước`;
+
+    const diffDays = Math.floor(diffMins / 1440);
+    if (diffDays === 1) return 'Hôm qua';
+    if (diffDays < 7) return `${diffDays} ngày trước`;
+
+    return msgDate.toLocaleDateString('vi-VN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: msgDate.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+    });
   };
 
   const filteredConversations = conversations.filter(conv => {
@@ -664,70 +693,86 @@ const CandidateMessages = () => {
 
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto">
-          {filteredConversations.map((conversation) => (
-            <div
-              key={conversation.id}
-              onClick={() => {
-                setActiveConversation(conversation.id);
-                markConversationAsRead(conversation.id);
-              }}
-              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 relative group ${activeConversation === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                }`}
-            >
-              <div className="flex items-start space-x-3">
-                <div className="relative">
-                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                    {conversation.userAvatar ? (
-                      <img src={conversation.userAvatar} alt={conversation.userName} className="w-full h-full rounded-full object-cover" />
-                    ) : (
-                      <span className="text-xl text-gray-400">🏢</span>
-                    )}
-                  </div>
-                  <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conversation.status)}`}></div>
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-center mb-1">
-                    <h3 className="text-sm font-medium text-gray-900 truncate">{conversation.userName}</h3>
-                    <span className="text-xs text-gray-500">{formatTime(conversation.lastMessageTime)}</span>
-                  </div>
-                  {conversation.companyName && (
-                    <p className="text-xs text-blue-600 mb-1">{conversation.companyName}</p>
-                  )}
-                  <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
-
-                  <div className="flex justify-between items-center mt-2">
-                    <div className="flex items-center space-x-1">
-                      <span className="text-xs text-gray-500">Nhà tuyển dụng</span>
-                    </div>
-                    {conversation.unreadCount > 0 && (
-                      <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">
-                        {conversation.unreadCount}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Delete button - appears on hover */}
-              <button
-                onClick={(e) => deleteConversation(conversation.id, e)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
-                title="Xóa cuộc trò chuyện"
+          {filteredConversations.length > 0 ? (
+            filteredConversations.map((conversation) => (
+              <div
+                key={conversation.id}
+                onClick={() => {
+                  setActiveConversation(conversation.id);
+                  markConversationAsRead(conversation.id);
+                }}
+                className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 relative group ${activeConversation === conversation.id
+                  ? 'bg-blue-50 border-l-4 border-l-blue-500'
+                  : conversation.unreadCount > 0
+                    ? 'bg-red-50/30 border-l-4 border-l-red-400'
+                    : ''
+                  }`}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          ))}
+                <div className="flex items-start space-x-3">
+                  <div className="relative">
+                    <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                      {conversation.userAvatar ? (
+                        <img src={conversation.userAvatar} alt={conversation.userName} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        <span className="text-xl text-gray-400">🏢</span>
+                      )}
+                    </div>
+                    <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${getStatusColor(conversation.status)}`}></div>
+                  </div>
 
-          {filteredConversations.length === 0 && (
-            <div className="text-center py-8">
-              <svg className="w-12 h-12 text-gray-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-center mb-1">
+                      <h3 className={`text-sm ${conversation.unreadCount > 0 ? 'font-bold' : 'font-medium'} text-gray-900 truncate`}>
+                        {conversation.userName}
+                      </h3>
+                      <span className="text-xs text-gray-500">{formatTime(conversation.lastMessageTime)}</span>
+                    </div>
+                    {conversation.companyName && (
+                      <p className="text-xs text-blue-600 mb-1">{conversation.companyName}</p>
+                    )}
+                    <p className={`text-sm ${conversation.unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'} truncate`}>
+                      {conversation.lastMessage}
+                    </p>
+
+                    <div className="flex justify-between items-center mt-2">
+                      <div className="flex items-center space-x-1">
+                        <span className="text-xs text-gray-500">Nhà tuyển dụng</span>
+                      </div>
+                      {conversation.unreadCount > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 animate-pulse">
+                          {conversation.unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Delete button - appears on hover */}
+                <button
+                  onClick={(e) => deleteConversation(conversation.id, e)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  title="Xóa cuộc trò chuyện"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 px-4">
+              <svg className="w-20 h-20 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
+                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
-              <p className="text-gray-500 text-sm">Không tìm thấy cuộc trò chuyện nào</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {searchQuery ? 'Không tìm thấy cuộc trò chuyện' : 'Chưa có tin nhắn'}
+              </h3>
+              <p className="text-sm text-gray-500 text-center max-w-sm">
+                {searchQuery
+                  ? `Không có kết quả cho "${searchQuery}"`
+                  : 'Tin nhắn của bạn với nhà tuyển dụng sẽ xuất hiện ở đây'}
+              </p>
             </div>
           )}
         </div>
@@ -829,24 +874,34 @@ const CandidateMessages = () => {
             </div>
 
             {/* Message Input */}
-            <div className="bg-white border-t border-gray-200 p-4">
-              <div className="flex items-center space-x-2">
-                <input
-                  type="text"
+            <div className="p-4 bg-white border-t border-gray-200">
+              <div className="relative">
+                <textarea
                   value={newMessage}
-                  onChange={handleInputChange}
-                  onKeyPress={(e) => e.key === 'Enter' && !sending && sendMessage()}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
                   placeholder="Nhập tin nhắn..."
-                  disabled={sending}
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100"
+                  maxLength={1000}
+                  className="w-full px-4 py-3 pr-24 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 resize-none"
+                  rows="3"
                 />
-                <button
-                  onClick={sendMessage}
-                  disabled={!newMessage.trim() || sending}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                >
-                  {sending ? 'Đang gửi...' : 'Gửi'}
-                </button>
+                <div className="absolute bottom-3 right-3 flex items-center space-x-2">
+                  <span className={`text-xs ${newMessage.length > 900 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+                    {newMessage.length}/1000
+                  </span>
+                  <button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || sending}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {sending ? 'Đang gửi...' : 'Gửi'}
+                  </button>
+                </div>
               </div>
             </div>
           </>
