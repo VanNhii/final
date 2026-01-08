@@ -55,7 +55,7 @@ const CandidateMessages = () => {
   // Handle userId from URL params - separate effect to run after conversations load
   useEffect(() => {
     const userId = searchParams.get('userId');
-    if (userId && !loading) { // Only run after loading is complete
+    if (userId && !loading && user?._id) { // Only run after loading is complete
       const conversationId = generateConversationId(user._id, userId);
 
       // Check if conversation exists
@@ -66,10 +66,10 @@ const CandidateMessages = () => {
         createPlaceholderConversation(userId, conversationId);
       }
 
-      // Set as active
+      // Set as active (regardless of whether it existed or was just created)
       setActiveConversation(conversationId);
     }
-  }, [searchParams, loading]);
+  }, [searchParams, loading, conversations, user?._id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -418,7 +418,17 @@ const CandidateMessages = () => {
     if (!newMessage.trim() || !activeConversation || sending) return;
 
     const conv = conversations.find(c => c.id === activeConversation);
-    if (!conv) return;
+    if (!conv) {
+      console.error('[CANDIDATE] No conversation found for activeConversation:', activeConversation);
+      return;
+    }
+
+    console.log('[CANDIDATE] Sending message to conversation:', {
+      conversationId: conv.id,
+      targetUserId: conv.userId,
+      targetUserName: conv.userName,
+      activeConversation: activeConversation
+    });
 
     try {
       setSending(true);
