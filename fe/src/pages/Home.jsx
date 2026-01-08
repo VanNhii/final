@@ -24,15 +24,15 @@ const Home = () => {
   
   // API data states
   const [featuredJobs, setFeaturedJobs] = useState([]);
-  const [recentJobs, setRecentJobs] = useState([]);
+  // const [recentJobs, setRecentJobs] = useState([]);
   const [categories, setCategories] = useState([]);
   const [blogPosts, setBlogPosts] = useState([]);
-  const [jobStats, setJobStats] = useState({
-    totalJobs: 0,
-    totalCompanies: 0,
-    totalApplications: 0,
-    totalCandidates: 0
-  });
+  // const [jobStats, setJobStats] = useState({
+  //   totalJobs: 0,
+  //   totalCompanies: 0,
+  //   totalApplications: 0,
+  //   totalCandidates: 0
+  // });
   const [loading, setLoading] = useState(true);
 
   const testimonials = [
@@ -93,11 +93,11 @@ const Home = () => {
           const jobsData = jobsResponse.data?.data || jobsResponse.data || [];
           const jobs = Array.isArray(jobsData) ? jobsData : [];
           setFeaturedJobs(jobs);
-          setRecentJobs(jobs);
-          setJobStats(prev => ({
-            ...prev,
-            totalJobs: jobsResponse.data?.pagination?.total || jobs.length || 0
-          }));
+          // setRecentJobs(jobs);
+          // setJobStats(prev => ({
+          //   ...prev,
+          //   totalJobs: jobsResponse.data?.pagination?.total || jobs.length || 0
+          // }));
         }
 
         if (categoriesResponse.success) {
@@ -146,13 +146,14 @@ const Home = () => {
       <section className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 text-white py-20 lg:py-32 relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 opacity-10">
-          <div className="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
-          <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-300 rounded-full blur-3xl"></div>
+          <div className="absolute top-20 left-10 w-72 h-72 bg-white rounded-full blur-3xl animate-blob"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-blue-300 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
+          <div className="absolute top-1/2 left-1/2 w-80 h-80 bg-purple-300 rounded-full blur-3xl animate-blob animation-delay-4000"></div>
         </div>
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <div>
+            <div className="animate-fade-in-up">
               <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
                 Kết nối tài năng IT
                 <br />
@@ -166,31 +167,31 @@ const Home = () => {
               
               {/* Quick stats */}
               <div className="grid grid-cols-3 gap-6 mb-8">
-                <div className="text-center">
+                <div className="text-center p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all duration-300">
                   <div className="text-2xl font-bold text-yellow-300">50K+</div>
-                  <div className="text-sm text-blue-200">Việc làm</div>
+                  <div className="text-sm text-blue-100">Việc làm</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all duration-300">
                   <div className="text-2xl font-bold text-yellow-300">1K+</div>
-                  <div className="text-sm text-blue-200">Công ty</div>
+                  <div className="text-sm text-blue-100">Công ty</div>
                 </div>
-                <div className="text-center">
+                <div className="text-center p-4 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all duration-300">
                   <div className="text-2xl font-bold text-yellow-300">100K+</div>
-                  <div className="text-sm text-blue-200">Ứng viên</div>
+                  <div className="text-sm text-blue-100">Ứng viên</div>
                 </div>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   to="/jobs"
-                  className="flex items-center justify-center bg-yellow-400 text-gray-900 font-semibold py-4 px-8 rounded-xl hover:bg-yellow-300 transition-all shadow-lg hover:shadow-xl"
+                  className="flex items-center justify-center bg-yellow-400 text-gray-900 font-bold py-4 px-8 rounded-full hover:bg-yellow-300 transition-all shadow-lg hover:shadow-yellow-400/50 hover:-translate-y-1 transform duration-300"
                 >
                   <BsRocket className="w-5 h-5 mr-2" />
                   Khám phá việc làm
                 </Link>
                 <Link
                   to="/register"
-                  className="border-2 border-white text-white font-semibold py-4 px-8 rounded-xl hover:bg-white hover:text-blue-600 transition-all"
+                  className="flex items-center justify-center border-2 border-white text-white font-bold py-4 px-8 rounded-full hover:bg-white hover:text-blue-600 transition-all hover:shadow-lg hover:-translate-y-1 transform duration-300"
                 >
                   Đăng ký miễn phí
                 </Link>
@@ -198,9 +199,9 @@ const Home = () => {
             </div>
             
             {/* Hero Image/Illustration */}
-            <div className="hidden lg:block">
+            <div className="hidden lg:block animate-float">
               <div className="relative">
-                <div className="bg-white bg-opacity-20 backdrop-blur-sm rounded-3xl p-8 shadow-2xl">
+                <div className="bg-white/10 backdrop-blur-md rounded-3xl p-8 shadow-2xl border border-white/20">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-white bg-opacity-90 rounded-xl p-4 shadow-lg">
                       <div className="w-full h-3 bg-blue-200 rounded-full mb-3"></div>
@@ -233,52 +234,56 @@ const Home = () => {
       {/* Advanced Search Section */}
       <section className="bg-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-white shadow-2xl rounded-3xl p-8 -mt-32 relative z-20 border border-gray-100">
+          <div className="bg-white shadow-2xl rounded-3xl p-8 -mt-32 relative z-20 border border-gray-100 hover:shadow-3xl transition-shadow duration-300">
             <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
               Tìm kiếm việc làm IT phù hợp với bạn
             </h2>
             
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="relative">
+              <div className="relative group">
                 <input
                   type="text"
                   placeholder="Vị trí, công ty, kỹ năng..."
                   value={searchKeyword}
                   onChange={(e) => setSearchKeyword(e.target.value)}
-                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent pl-12"
+                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 pl-12 transition-all duration-300 group-hover:border-blue-300"
                 />
-                <FiSearch className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2" />
+                <FiSearch className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 transform -translate-y-1/2 group-hover:text-blue-500 transition-colors" />
               </div>
               
-              <select 
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="">Tất cả danh mục</option>
-                {categories.map((category) => (
-                  <option key={category._id} value={category._id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+              <div className="group">
+                <select 
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 group-hover:border-blue-300"
+                >
+                  <option value="">Tất cả danh mục</option>
+                  {categories.map((category) => (
+                    <option key={category._id} value={category._id}>
+                      {category.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
               
-              <select 
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              >
-                <option value="">Tất cả địa điểm</option>
-                <option>Hà Nội</option>
-                <option>TP.HCM</option>
-                <option>Đà Nẵng</option>
-                <option>Cần Thơ</option>
-                <option>Remote</option>
-              </select>
+              <div className="group">
+                <select 
+                  value={selectedLocation}
+                  onChange={(e) => setSelectedLocation(e.target.value)}
+                  className="w-full px-4 py-4 border border-gray-300 rounded-xl focus:ring-4 focus:ring-blue-100 focus:border-blue-500 transition-all duration-300 group-hover:border-blue-300"
+                >
+                  <option value="">Tất cả địa điểm</option>
+                  <option>Hà Nội</option>
+                  <option>TP.HCM</option>
+                  <option>Đà Nẵng</option>
+                  <option>Cần Thơ</option>
+                  <option>Remote</option>
+                </select>
+              </div>
               
               <button 
                 onClick={handleSearch}
-                className="flex items-center justify-center bg-blue-600 text-white font-semibold py-4 px-8 rounded-xl hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl"
+                className="flex items-center justify-center bg-blue-600 text-white font-bold py-4 px-8 rounded-xl hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5"
               >
                 <FiSearch className="w-5 h-5 mr-2" />
                 Tìm kiếm
@@ -287,12 +292,15 @@ const Home = () => {
 
             {/* Popular searches */}
             <div className="flex flex-wrap gap-2 justify-center">
-              <span className="text-sm text-gray-500">Tìm kiếm phổ biến:</span>
+              <span className="text-sm text-gray-500 flex items-center">
+                <BsFire className="w-4 h-4 text-red-500 mr-2" />
+                Tìm kiếm phổ biến:
+              </span>
               {['React Developer', 'Node.js', 'Java Spring', 'Python Django', 'DevOps'].map(term => (
                 <button
                   key={term}
                   onClick={() => setSearchKeyword(term)}
-                  className="text-sm bg-gray-100 text-gray-700 px-3 py-1 rounded-full hover:bg-primary-100 hover:text-primary-700 transition-colors"
+                  className="text-sm bg-gray-50 text-gray-600 px-4 py-1.5 rounded-full hover:bg-blue-50 hover:text-blue-600 transition-all duration-300 hover:shadow-sm border border-transparent hover:border-blue-100"
                 >
                   {term}
                 </button>
@@ -320,21 +328,21 @@ const Home = () => {
                 <Link
                   key={category._id || index}
                   to={`/jobs?category=${category._id}`}
-                  className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 border border-gray-100 group"
+                  className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 group hover:border-blue-100"
                 >
                   <div className="flex items-center mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center mr-4 group-hover:from-blue-200 group-hover:to-blue-100 transition-all">
-                      <MdCategory className="w-6 h-6 text-blue-600" />
+                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mr-4 group-hover:bg-blue-600 transition-all duration-300 shadow-sm group-hover:shadow-blue-200">
+                      <MdCategory className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{category.name}</h3>
-                      <p className="text-blue-600 font-medium flex items-center">
-                        <FiBriefcase className="w-4 h-4 mr-1" />
+                      <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{category.name}</h3>
+                      <p className="text-gray-500 text-sm font-medium flex items-center mt-1">
+                        <FiBriefcase className="w-3.5 h-3.5 mr-1" />
                         {category.jobs_count || 0} việc làm
                       </p>
                     </div>
                   </div>
-                  <div className="text-sm text-gray-500">
+                  <div className="text-sm text-gray-500 pl-18">
                     {category.description || `Khám phá cơ hội trong lĩnh vực ${category.name.toLowerCase()}`}
                   </div>
                 </Link>
@@ -352,17 +360,17 @@ const Home = () => {
                 <Link
                   key={index}
                   to={`/jobs?search=${encodeURIComponent(category.name)}`}
-                  className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all transform hover:-translate-y-1 border border-gray-100 group"
+                  className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-100 group hover:border-blue-100"
                 >
                   <div className="flex items-center mb-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center mr-4 group-hover:from-blue-200 group-hover:to-blue-100 transition-all">
-                      <MdCategory className="w-6 h-6 text-blue-600" />
+                    <div className="w-14 h-14 bg-blue-50 rounded-2xl flex items-center justify-center mr-4 group-hover:bg-blue-600 transition-all duration-300 shadow-sm group-hover:shadow-blue-200">
+                      <MdCategory className="w-7 h-7 text-blue-600 group-hover:text-white transition-colors" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">{category.name}</h3>
-                      <p className="text-blue-600 font-medium flex items-center">
-                        <FiBriefcase className="w-4 h-4 mr-1" />
-                        {category.count} việc làm
+                      <h3 className="text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{category.name}</h3>
+                      <p className="text-gray-500 text-sm font-medium flex items-center mt-1">
+                        <FiBriefcase className="w-3.5 h-3.5 mr-1" />
+                        {category.count || 0} việc làm
                       </p>
                     </div>
                   </div>
@@ -398,64 +406,68 @@ const Home = () => {
                 <Link 
                   key={job._id} 
                   to={`/jobs/${job._id}`}
-                  className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all transform hover:-translate-y-1 group"
+                  className="bg-white border border-gray-100 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group hover:border-blue-100 relative overflow-hidden"
                 >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center shadow-sm">
-                      {job.recruiter_id?.company_logo_url ? (
-                        <img 
-                          src={job.recruiter_id.company_logo_url} 
-                          alt={job.recruiter_id.company_name}
-                          className="w-10 h-10 object-contain rounded"
-                        />
-                      ) : (
-                        <BsBuilding className="w-7 h-7 text-blue-600" />
-                      )}
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-bl-full -mr-12 -mt-12 transition-transform group-hover:scale-150 duration-500"></div>
+                  
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-gray-50 p-2 group-hover:scale-105 transition-transform duration-300">
+                        {job.recruiter_id?.company_logo_url ? (
+                          <img 
+                            src={job.recruiter_id.company_logo_url} 
+                            alt={job.recruiter_id.company_name}
+                            className="w-full h-full object-contain rounded-lg"
+                          />
+                        ) : (
+                          <BsBuilding className="w-8 h-8 text-blue-500" />
+                        )}
+                      </div>
+                      <div className="flex flex-col space-y-2 items-end">
+                        {job.is_urgent && (
+                          <span className="bg-red-50 text-red-600 text-xs font-bold px-3 py-1 rounded-full border border-red-100 flex items-center">
+                            <BsFire className="w-3 h-3 mr-1" />
+                            Gấp
+                          </span>
+                        )}
+                        {job.is_featured && (
+                          <span className="bg-yellow-50 text-yellow-700 text-xs font-bold px-3 py-1 rounded-full border border-yellow-100 flex items-center">
+                            <BsStar className="w-3 h-3 mr-1" />
+                            Nổi bật
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col space-y-2">
-                      {job.is_urgent && (
-                        <span className="bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center">
-                          <BsFire className="w-3 h-3 mr-1" />
-                          Gấp
-                        </span>
-                      )}
-                      {job.is_featured && (
-                        <span className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-900 text-xs font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center">
-                          <BsStar className="w-3 h-3 mr-1" />
-                          Nổi bật
-                        </span>
-                      )}
+                    <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2 min-h-[3.5rem]">
+                      {job.title}
+                    </h3>
+                    <p className="text-gray-500 mb-4 flex items-center text-sm">
+                      <BsBuilding className="w-4 h-4 mr-1.5 text-gray-400" />
+                      {job.recruiter_id?.company_name}
+                    </p>
+                    <div className="flex items-center text-gray-500 text-sm mb-6 space-x-4">
+                      <span className="flex items-center bg-gray-50 px-2.5 py-1 rounded-lg">
+                        <FiMapPin className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                        {job.location?.city || job.location || 'Remote'}
+                      </span>
+                      <span className="flex items-center bg-gray-50 px-2.5 py-1 rounded-lg">
+                        <FiBriefcase className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                        {job.job_type || 'Full-time'}
+                      </span>
                     </div>
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
-                    {job.title}
-                  </h3>
-                  <p className="text-gray-600 mb-3 flex items-center">
-                    <BsBuilding className="w-4 h-4 mr-1.5" />
-                    {job.recruiter_id?.company_name}
-                  </p>
-                  <div className="flex items-center text-gray-600 text-sm mb-4 space-x-3">
-                    <span className="flex items-center">
-                      <FiMapPin className="w-4 h-4 mr-1" />
-                      {job.location?.city || job.location || 'Remote'}
-                    </span>
-                    <span className="flex items-center">
-                      <FiBriefcase className="w-4 h-4 mr-1" />
-                      {job.job_type || 'Full-time'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-blue-600 font-semibold flex items-center">
-                      <FiDollarSign className="w-4 h-4 mr-1" />
-                      {job.salary_min && job.salary_max 
-                        ? `${(job.salary_min / 1000000).toFixed(0)} - ${(job.salary_max / 1000000).toFixed(0)}tr`
-                        : 'Thỏa thuận'
-                      }
-                    </span>
-                    <span className="text-blue-600 group-hover:text-blue-700 font-medium flex items-center">
-                      Xem chi tiết
-                      <FiArrowRight className="w-4 h-4 ml-1" />
-                    </span>
+                    <div className="flex items-center justify-between pt-4 border-t border-gray-50">
+                      <span className="text-blue-600 font-bold flex items-center text-lg">
+                        <FiDollarSign className="w-5 h-5 mr-1" />
+                        {job.salary_min && job.salary_max 
+                          ? `${(job.salary_min / 1000000).toFixed(0)} - ${(job.salary_max / 1000000).toFixed(0)}tr`
+                          : 'Thỏa thuận'
+                        }
+                      </span>
+                      <span className="text-gray-400 group-hover:text-blue-600 font-medium flex items-center text-sm transition-colors duration-300">
+                        Chi tiết
+                        <FiArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                      </span>
+                    </div>
                   </div>
                 </Link>
               ))}
@@ -465,7 +477,7 @@ const Home = () => {
           <div className="text-center mt-12">
             <Link
               to="/jobs"
-              className="inline-flex items-center px-6 py-3 border-2 border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-all hover:shadow-md"
+              className="inline-flex items-center px-8 py-3.5 border-2 border-blue-600 text-blue-600 font-bold rounded-full hover:bg-blue-600 hover:text-white transition-all duration-300 hover:shadow-lg hover:-translate-y-0.5"
             >
               Xem tất cả việc làm
               <FiArrowRight className="ml-2 w-5 h-5" />
@@ -488,29 +500,33 @@ const Home = () => {
           
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 items-center">
             {topCompanies.map((company, index) => (
-              <div key={index} className="flex justify-center">
-                <div className="bg-white p-6 rounded-xl w-full h-24 flex items-center justify-center hover:shadow-md transition-all transform hover:-translate-y-1 border border-gray-100">
-                  <span className="text-gray-700 font-medium text-sm text-center">{company.name}</span>
+              <div key={index} className="flex justify-center group">
+                <div className="bg-white p-6 rounded-2xl w-full h-28 flex items-center justify-center shadow-sm hover:shadow-lg transition-all duration-300 transform group-hover:-translate-y-1 border border-gray-100 group-hover:border-blue-100">
+                  <span className="text-gray-700 font-bold text-sm text-center group-hover:text-blue-600 transition-colors">{company.name}</span>
                 </div>
               </div>
             ))}
           </div>
           
-          <div className="text-center mt-8">
+          <div className="text-center mt-10">
             <Link
               to="/companies"
-              className="text-primary-600 hover:text-primary-700 font-semibold inline-flex items-center"
+              className="text-blue-600 hover:text-blue-800 font-bold inline-flex items-center group transition-colors"
             >
               Xem tất cả công ty
-              <FiArrowRight className="ml-2 w-4 h-4" />
+              <FiArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
         </div>
       </section>
 
       {/* Blog Section */}
-      <section className="bg-gray-50 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="bg-white py-16 relative overflow-hidden">
+        {/* Decorative circle */}
+        <div className="absolute top-0 left-0 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-50 -translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-yellow-50 rounded-full blur-3xl opacity-50 translate-x-1/2 translate-y-1/2"></div>
+        
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Bài viết mới nhất
@@ -525,46 +541,49 @@ const Home = () => {
               <LoadingSpinner />
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {blogPosts.length > 0 ? (
                 blogPosts.map((post) => (
                   <Link 
                     key={post._id} 
                     to={`/blog/${post.slug || post._id}`}
-                    className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-lg transition-all transform hover:-translate-y-1 group"
+                    className="bg-white border border-gray-100 rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group"
                   >
                     {post.featured_image_url && (
-                      <div className="overflow-hidden">
+                      <div className="overflow-hidden relative h-52">
+                        <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors z-10"></div>
                         <img 
                           src={post.featured_image_url} 
                           alt={post.title}
-                          className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />
                       </div>
                     )}
-                    <div className="p-6">
-                      <div className="flex items-center text-sm text-gray-500 mb-3">
-                        <FiClock className="w-4 h-4 mr-1" />
-                        <span>{new Date(post.published_at || post.created_at).toLocaleDateString('vi-VN')}</span>
+                    <div className="p-8">
+                      <div className="flex items-center text-xs font-semibold text-gray-500 mb-4 uppercase tracking-wider">
+                        <span className="flex items-center">
+                          <FiClock className="w-3.5 h-3.5 mr-1.5" />
+                          {new Date(post.published_at || post.created_at).toLocaleDateString('vi-VN')}
+                        </span>
                         {post.category && (
                           <>
-                            <span className="mx-2">•</span>
-                            <span className="text-blue-600 flex items-center">
+                            <span className="mx-2 text-gray-300">•</span>
+                            <span className="text-blue-600 flex items-center bg-blue-50 px-2 py-0.5 rounded">
                               <FiFileText className="w-3 h-3 mr-1" />
                               {post.category}
                             </span>
                           </>
                         )}
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                      <h3 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors">
                         {post.title}
                       </h3>
-                      <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed">
+                      <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed mb-6">
                         {post.excerpt || (post.content ? post.content.substring(0, 150) + '...' : '')}
                       </p>
-                      <div className="mt-4 flex items-center text-blue-600 font-semibold group-hover:text-blue-700">
+                      <div className="flex items-center text-blue-600 font-bold group-hover:text-blue-700">
                         <span>Đọc thêm</span>
-                        <FiArrowRight className="ml-1 w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                        <FiArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                       </div>
                     </div>
                   </Link>
@@ -580,7 +599,7 @@ const Home = () => {
           <div className="text-center mt-12">
             <Link
               to="/blog"
-              className="inline-flex items-center px-6 py-3 border-2 border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-all hover:shadow-md"
+              className="inline-flex items-center px-8 py-3.5 border-2 border-blue-600 text-blue-600 font-bold rounded-full hover:bg-blue-600 hover:text-white transition-all duration-300 hover:shadow-lg"
             >
               Xem tất cả bài viết
               <FiArrowRight className="ml-2 w-5 h-5" />
@@ -590,8 +609,8 @@ const Home = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="bg-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="bg-gray-50 py-20 relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
               Câu chuyện thành công
@@ -602,25 +621,31 @@ const Home = () => {
           </div>
 
           <div className="max-w-4xl mx-auto">
-            <div className="bg-gradient-to-r from-primary-50 to-blue-50 rounded-2xl p-8">
-              <div className="text-center">
-                <div className="mb-6">
-                  <img
-                    src={testimonials[currentTestimonial].avatar || '/images/testimonials/default.jpg'}
-                    alt={testimonials[currentTestimonial].name}
-                    className="w-20 h-20 rounded-full mx-auto object-cover"
-                  />
-                </div>
-                
-                <blockquote className="text-xl text-gray-700 mb-6 italic">
+            <div className="bg-white rounded-3xl p-10 shadow-xl relative border border-gray-100">
+              {/* Quote icon */}
+              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center text-2xl shadow-lg shadow-blue-500/30">
+                ❝
+              </div>
+              
+              <div className="text-center mt-4">
+                <blockquote className="text-xl md:text-2xl text-gray-700 mb-8 italic leading-relaxed font-light">
                   "{testimonials[currentTestimonial].content}"
                 </blockquote>
                 
-                <div>
-                  <div className="font-semibold text-gray-900">
+                <div className="flex flex-col items-center">
+                  <div className="mb-4 relative">
+                    <div className="absolute inset-0 bg-blue-500 rounded-full blur opacity-30 scale-110"></div>
+                    <img
+                      src={testimonials[currentTestimonial].avatar || '/images/testimonials/default.jpg'}
+                      alt={testimonials[currentTestimonial].name}
+                      className="w-20 h-20 rounded-full object-cover border-4 border-white shadow-md relative z-10"
+                    />
+                  </div>
+                  
+                  <div className="font-bold text-lg text-gray-900">
                     {testimonials[currentTestimonial].name}
                   </div>
-                  <div className="text-gray-600">
+                  <div className="text-blue-600 font-medium">
                     {testimonials[currentTestimonial].role} tại {testimonials[currentTestimonial].company}
                   </div>
                 </div>
@@ -628,14 +653,17 @@ const Home = () => {
             </div>
 
             {/* Testimonial indicators */}
-            <div className="flex justify-center mt-6 space-x-2">
+            <div className="flex justify-center mt-8 space-x-3">
               {testimonials.map((_, index) => (
                 <button
                   key={index}
                   onClick={() => setCurrentTestimonial(index)}
-                  className={`w-3 h-3 rounded-full transition-colors ${
-                    index === currentTestimonial ? 'bg-blue-600' : 'bg-gray-300'
+                  className={`transition-all duration-300 rounded-full ${
+                    index === currentTestimonial 
+                      ? 'w-10 h-3 bg-blue-600 shadow-md shadow-blue-500/30' 
+                      : 'w-3 h-3 bg-gray-300 hover:bg-gray-400'
                   }`}
+                  aria-label={`Go to testimonial ${index + 1}`}
                 />
               ))}
             </div>
@@ -644,25 +672,26 @@ const Home = () => {
       </section>
 
       {/* Call to Action */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+      <section className="bg-gradient-to-r from-blue-700 via-blue-600 to-blue-800 text-white py-20 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('/images/pattern.png')] opacity-10"></div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+          <h2 className="text-3xl md:text-5xl font-bold mb-6 tracking-tight">
             Sẵn sàng bắt đầu hành trình mới?
           </h2>
-          <p className="text-xl text-primary-100 mb-8 max-w-2xl mx-auto">
+          <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto leading-relaxed">
             Tham gia cộng đồng IT lớn nhất Việt Nam và khám phá hàng nghìn cơ hội việc làm hấp dẫn
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-6 justify-center">
             <Link
               to="/register"
-              className="bg-yellow-400 text-gray-900 font-semibold py-4 px-8 rounded-xl hover:bg-yellow-300 transition-all transform hover:scale-105 shadow-lg"
+              className="bg-yellow-400 text-gray-900 font-bold py-4 px-10 rounded-full hover:bg-yellow-300 transition-all transform hover:scale-105 shadow-lg hover:shadow-yellow-400/50"
             >
               Đăng ký ngay - Miễn phí
             </Link>
             <Link
               to="/about"
-              className="border-2 border-white text-white font-semibold py-4 px-8 rounded-xl hover:bg-white hover:text-blue-600 transition-all"
+              className="border-2 border-white/80 text-white font-bold py-4 px-10 rounded-full hover:bg-white hover:text-blue-600 transition-all transform hover:scale-105 hover:border-white"
             >
               Tìm hiểu thêm
             </Link>

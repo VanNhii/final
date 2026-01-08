@@ -10,6 +10,11 @@ const CandidateInterviews = () => {
   const [selectedInterview, setSelectedInterview] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState('');
+  const [rejectMessage, setRejectMessage] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
   const [feedback, setFeedback] = useState({
     rating: 5,
     comments: '',
@@ -51,21 +56,75 @@ const CandidateInterviews = () => {
     }
   };
 
+  const handleConfirmInterview = async () => {
+    try {
+      setActionLoading(true);
+      const response = await candidateService.confirmInterview(selectedInterview._id, {
+        message: confirmMessage
+      });
+
+      if (response.success) {
+        toast.success('Đã xác nhận tham gia phỏng vấn');
+        setInterviews(interviews.map(i =>
+          i._id === selectedInterview._id
+            ? { ...i, candidate_confirmation: { is_confirmed: true, message: confirmMessage, confirmed_at: new Date() } }
+            : i
+        ));
+        setShowConfirmModal(false);
+        setConfirmMessage('');
+      } else {
+        throw new Error(response.message || 'Failed to confirm interview');
+      }
+    } catch (error) {
+      console.error('Error confirming interview:', error);
+      toast.error(error.message || 'Không thể xác nhận tham gia');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectInterview = async () => {
+    try {
+      setActionLoading(true);
+      const response = await candidateService.rejectInterview(selectedInterview._id, {
+        message: rejectMessage
+      });
+
+      if (response.success) {
+        toast.success('Đã từ chối và hủy lịch phỏng vấn');
+        // Remove from list since it's deleted from database
+        setInterviews(interviews.filter(i => i._id !== selectedInterview._id));
+        setShowRejectModal(false);
+        setRejectMessage('');
+        setSelectedInterview(null);
+      } else {
+        throw new Error(response.message || 'Failed to reject interview');
+      }
+    } catch (error) {
+      console.error('Error rejecting interview:', error);
+      toast.error(error.message || 'Không thể từ chối lịch phỏng vấn');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const badges = {
       scheduled: 'bg-blue-100 text-blue-800',
       in_progress: 'bg-purple-100 text-purple-800',
       completed: 'bg-green-100 text-green-800',
       cancelled: 'bg-red-100 text-red-800',
-      no_show: 'bg-gray-100 text-gray-800'
+      no_show: 'bg-gray-100 text-gray-800',
+      rescheduled: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     const labels = {
       scheduled: 'Đã lên lịch',
       in_progress: 'Đang diễn ra',
       completed: 'Hoàn thành',
       cancelled: 'Đã hủy',
-      no_show: 'Không tham gia'
+      no_show: 'Không tham gia',
+      rescheduled: 'Đã dời lịch'
     };
 
     return (
@@ -99,10 +158,10 @@ const CandidateInterviews = () => {
 
   const formatDate = (dateString) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', { 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+    return date.toLocaleDateString('vi-VN', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
@@ -115,8 +174,8 @@ const CandidateInterviews = () => {
     return interview.status === 'scheduled' && interviewDateTime > new Date();
   };
 
-  const filteredInterviews = filter === 'all' 
-    ? interviews 
+  const filteredInterviews = filter === 'all'
+    ? interviews
     : interviews.filter(interview => interview.status === filter);
 
   const upcomingInterviews = interviews.filter(isUpcoming);
@@ -154,9 +213,9 @@ const CandidateInterviews = () => {
           </p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
-          <p className="text-sm font-medium text-gray-500">Đậu phỏng vấn</p>
+          <p className="text-sm font-medium text-gray-500">Đã xác nhận</p>
           <p className="text-2xl font-semibold text-green-600">
-            {interviews.filter(i => i.result === 'passed').length}
+            {interviews.filter(i => i.candidate_confirmation?.status === 'confirmed').length}
           </p>
         </div>
       </div>
@@ -192,9 +251,9 @@ const CandidateInterviews = () => {
                 </div>
                 {interview.meeting_link && (
                   <div className="mt-3 pt-3 border-t border-blue-100">
-                    <a 
-                      href={interview.meeting_link} 
-                      target="_blank" 
+                    <a
+                      href={interview.meeting_link}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center text-sm text-blue-600 hover:text-blue-800 font-medium"
                     >
@@ -242,16 +301,16 @@ const CandidateInterviews = () => {
                       {getStatusBadge(interview.status)}
                     </div>
                   </div>
-                  
+
                   <p className="text-gray-600 mb-3">{interview.recruiter_id?.company_name || 'N/A'}</p>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600">
                     <div className="space-y-1">
                       <p className="flex items-center">
                         <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        <strong>Ngày giờ:</strong> 
+                        <strong>Ngày giờ:</strong>
                         <span className="ml-1">{formatDate(interview.interview_date)} lúc {formatTime(interview.interview_time)}</span>
                       </p>
                       {interview.duration_minutes && (
@@ -259,7 +318,7 @@ const CandidateInterviews = () => {
                           <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <strong>Thời lượng:</strong> 
+                          <strong>Thời lượng:</strong>
                           <span className="ml-1">{interview.duration_minutes} phút</span>
                         </p>
                       )}
@@ -268,7 +327,7 @@ const CandidateInterviews = () => {
                           <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
-                          <strong>Người phỏng vấn:</strong> 
+                          <strong>Người phỏng vấn:</strong>
                           <span className="ml-1">{interview.recruiter_id.user_id.full_name}</span>
                         </p>
                       )}
@@ -279,9 +338,9 @@ const CandidateInterviews = () => {
                           <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                           </svg>
-                          <strong>Link:</strong> 
-                          <a href={interview.meeting_link} target="_blank" rel="noopener noreferrer" 
-                             className="text-blue-600 hover:text-blue-800 ml-1 underline">
+                          <strong>Link:</strong>
+                          <a href={interview.meeting_link} target="_blank" rel="noopener noreferrer"
+                            className="text-blue-600 hover:text-blue-800 ml-1 underline">
                             Tham gia
                           </a>
                         </p>
@@ -292,7 +351,7 @@ const CandidateInterviews = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          <strong>Địa chỉ:</strong> 
+                          <strong>Địa chỉ:</strong>
                           <span className="ml-1">{interview.location}</span>
                         </p>
                       )}
@@ -327,14 +386,49 @@ const CandidateInterviews = () => {
                 </div>
 
                 <div className="flex flex-col space-y-2 ml-4">
-                  <button 
+                  <button
                     onClick={() => handleViewDetail(interview)}
                     className="px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition"
                   >
                     Xem chi tiết
                   </button>
+
+                  {/* Show confirm and reject buttons only if pending */}
+                  {interview.status === 'scheduled' && (!interview.candidate_confirmation?.status || interview.candidate_confirmation?.status === 'pending') && (
+                    <>
+                      <button
+                        onClick={() => {
+                          setSelectedInterview(interview);
+                          setShowConfirmModal(true);
+                        }}
+                        className="px-3 py-1.5 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition"
+                      >
+                        Xác nhận tham gia
+                      </button>
+                      <button
+                        onClick={() => {
+                          setSelectedInterview(interview);
+                          setShowRejectModal(true);
+                        }}
+                        className="px-3 py-1.5 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition"
+                      >
+                        Từ chối phỏng vấn
+                      </button>
+                    </>
+                  )}
+                  {/* Show status badges */}
+                  {interview.candidate_confirmation?.status === 'confirmed' && (
+                    <span className="px-3 py-1.5 text-sm font-medium text-green-700 bg-green-50 rounded-lg border border-green-200 text-center">
+                      ✓ Đã xác nhận
+                    </span>
+                  )}
+                  {interview.candidate_confirmation?.status === 'rejected' && (
+                    <span className="px-3 py-1.5 text-sm font-medium text-red-700 bg-red-50 rounded-lg border border-red-200 text-center">
+                      ✗ Đã từ chối
+                    </span>
+                  )}
                   {interview.status === 'completed' && (
-                    <button 
+                    <button
                       onClick={() => {
                         setSelectedInterview(interview);
                         setShowFeedbackModal(true);
@@ -361,6 +455,98 @@ const CandidateInterviews = () => {
         )}
       </div>
 
+      {/* Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Xác nhận tham gia phỏng vấn</h3>
+            <p className="text-gray-600 mb-4">
+              Bạn có chắc chắn muốn tham gia buổi phỏng vấn này?
+              Nhà tuyển dụng sẽ nhận được thông báo xác nhận của bạn.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tin nhắn cho nhà tuyển dụng (tùy chọn)
+              </label>
+              <textarea
+                value={confirmMessage}
+                onChange={(e) => setConfirmMessage(e.target.value)}
+                placeholder="Nhập tin nhắn..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                rows="3"
+              ></textarea>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowConfirmModal(false);
+                  setConfirmMessage('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                disabled={actionLoading}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleConfirmInterview}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center"
+              >
+                {actionLoading ? 'Đang xử lý...' : 'Xác nhận tham gia'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Từ chối lịch phỏng vấn</h3>
+            <p className="text-gray-600 mb-4">
+              Bạn có chắc chắn muốn từ chối buổi phỏng vấn này?
+              Nhà tuyển dụng sẽ nhận được thông báo từ chối của bạn.
+            </p>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Lý do từ chối (tùy chọn)
+              </label>
+              <textarea
+                value={rejectMessage}
+                onChange={(e) => setRejectMessage(e.target.value)}
+                placeholder="Nhập lý do..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                rows="3"
+              ></textarea>
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectMessage('');
+                }}
+                className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition"
+                disabled={actionLoading}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                onClick={handleRejectInterview}
+                disabled={actionLoading}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex items-center"
+              >
+                {actionLoading ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Detail Modal */}
       {showDetailModal && selectedInterview && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -368,7 +554,7 @@ const CandidateInterviews = () => {
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Chi tiết lịch phỏng vấn</h3>
-                <button 
+                <button
                   onClick={() => setShowDetailModal(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >
@@ -415,9 +601,9 @@ const CandidateInterviews = () => {
                 {selectedInterview.meeting_link && (
                   <div>
                     <p className="text-sm font-medium text-gray-700 mb-2">Link phỏng vấn</p>
-                    <a 
-                      href={selectedInterview.meeting_link} 
-                      target="_blank" 
+                    <a
+                      href={selectedInterview.meeting_link}
+                      target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center text-blue-600 hover:text-blue-800 underline"
                     >
@@ -490,7 +676,7 @@ const CandidateInterviews = () => {
             <div className="p-6">
               <div className="flex justify-between items-start mb-4">
                 <h3 className="text-xl font-bold text-gray-900">Đánh giá buổi phỏng vấn</h3>
-                <button 
+                <button
                   onClick={() => setShowFeedbackModal(false)}
                   className="text-gray-400 hover:text-gray-600"
                 >

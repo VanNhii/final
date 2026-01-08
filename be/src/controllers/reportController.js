@@ -9,7 +9,11 @@ exports.getReports = async (req, res, next) => {
     
     // Filter by status if provided
     if (req.query.status) {
-      query.status = req.query.status;
+      if (req.query.status === 'active') {
+        query.status = { $in: ['pending', 'investigating'] };
+      } else {
+        query.status = req.query.status;
+      }
     }
     
     // Filter by priority if provided
@@ -17,7 +21,9 @@ exports.getReports = async (req, res, next) => {
       query.priority = req.query.priority;
     }
     
-    const reports = await Report.find(query).sort('-created_at');
+    const reports = await Report.find(query)
+      .sort('-created_at')
+      .populate('reported_entity_id');
     
     res.status(200).json({
       success: true,
@@ -84,6 +90,46 @@ exports.getReport = async (req, res, next) => {
 exports.createReport = async (req, res, next) => {
   try {
     req.body.reporter_id = req.user.id;
+    
+    // Handle evidence files if present
+    if (req.files && req.files.length > 0) {
+      const evidenceFiles = req.files.map(file => {
+        // Construct file URL
+        const fileUrl = `${process.env.BASE_URL || 'http://localhost:5000'}/uploads/${file.filename.includes('/') || file.filename.includes('\\') ? file.filename : 'general/' + file.filename}`;
+        
+        // Fix URL path based on upload middleware logic
+        // The upload middleware saves to subdirectories but filename doesn't include subdir
+        // We need to determine subdir based on logic or check file path
+        
+        // Actually, upload middleware creates path: public/uploads/SUBDIR/filename
+        // But req.file.path contains the full path on disk
+        // req.file.destination contains the dir
+        
+        let fileType = 'other';
+        if (file.mimetype.startsWith('image/')) fileType = 'image';
+        else if (file.mimetype.includes('pdf') || file.mimetype.includes('document') || file.mimetype.includes('word')) fileType = 'document';
+        
+        // Construct relative path for URL
+        // Get subdirectory from destination
+        const relativePath = file.path.split('uploads')[1].replace(/\\/g, '/');
+        
+        // Fix filename encoding (Multer/Busboy latin1 issue)
+        let originalName = file.originalname;
+        try {
+          originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+        } catch (err) {
+          console.error('Error decoding filename:', err);
+        }
+
+        return {
+          file_name: originalName,
+          file_url: `/uploads${relativePath}`,
+          file_type: fileType
+        };
+      });
+      
+      req.body.evidence_files = evidenceFiles;
+    }
     
     const report = await Report.create(req.body);
     

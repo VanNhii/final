@@ -1,4 +1,5 @@
 # src/app.py (V6 - cleaned, no duplicate replies, clearer flows)
+# Updated configuration reload trigger
 from __future__ import annotations
 
 import os
@@ -51,6 +52,10 @@ rag_service.ensure_indexes()
 # ----------------------------
 # API helpers
 # ----------------------------
+def is_llm_enabled() -> bool:
+    return str(os.getenv("LLM_ENABLED", "true")).lower() in ("true", "1", "yes", "on")
+
+
 def api_ok(data: dict, message: str = "OK", status_code: int = 200):
     return jsonify({"success": True, "message": message, "data": data}), status_code
 
@@ -227,7 +232,7 @@ def build_empathy_message(
     history: List[dict],
     fallback: str,
 ) -> str:
-    if str(os.getenv("LLM_ENABLED", "true")).lower() != "true":
+    if not is_llm_enabled():
         return fallback
 
     prompt = f"""
@@ -818,8 +823,7 @@ def handle_candidate_job_fit(
 def handle_candidate_roadmap(candidate_id: str, question: str, session_id: str, job_id: Optional[str] = None):
     sess = rag_service.get_session(session_id) or {}
     payload = sess.get("payload") or {}
-    history = rag_service.get_history_messages(candidate_id, "candidate", limit=20) or (sess.get("messages") or [])
-
+    
     job_id = clean_text(job_id or payload.get("selected_job_id"))
     if not job_id:
         msg = "Bạn chưa chọn job. Gõ: 'tìm job ...' rồi 'chọn 1' trước nhé."
@@ -830,48 +834,140 @@ def handle_candidate_roadmap(candidate_id: str, question: str, session_id: str, 
     job_meta = rag_service.get_job_meta(job_id)
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not job_meta or not cand_meta:
-        return api_err("Job/Candidate facts not found. Run ingest scripts.", 404)
+        return api_err("Job/Candidate facts not found.", 404)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
-    current_state = build_candidate_current_state(candidate_id=candidate_id, session_id=session_id, payload=payload, fit=fit, job_meta=job_meta)
-    plan = rag_service.generate_roadmap_14_days(
-        missing=fit.get("missing") or [],
-        missing_critical=fit.get("missing_critical") or [],
-        job_title=clean_text(job_meta.get("job_title") or ""),
-    )
+    
+    # NEW LOGIC: Use LLM for structured roadmap
+    if is_llm_enabled():
+        prompt = rag_service.build_roadmap_prompt(job_meta, cand_meta, fit)
+        schema_hint = """{
+          "title": "string",
+          "overview": "string",
+          "phases": [{"name": "string", "focus": "string", "tasks": ["string"], "resources": ["string"]}],
+          "advice": "string"
+        }"""
+        
+        try:
+            answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
+            if isinstance(answer, dict) and answer.get("phases"):
+                msg = f"🗓️ **{clean_text(answer.get('title') or 'Lộ trình học tập')}**\n\n"
+                msg += f"{clean_text(answer.get('overview'))}\n\n"
+                for p in answer.get("phases", []):
+                    tasks = ", ".join([f"- {t}" for t in p.get("tasks", [])])
+                    msg += f"**{clean_text(p.get('name'))}**: {clean_text(p.get('focus'))}\n{tasks}\n\n"
+                if answer.get("advice"):
+                    msg += f"💡 {clean_text(answer.get('advice'))}"
+            else:
+                 msg = "Xin lỗi, mình chưa tạo được lộ trình chi tiết lúc này. Hãy thử lại sau nhé."
+                 answer = {}
+        except Exception as exc:
+            logger.error("Roadmap LLM failed: %s", exc)
+            msg = "Xin lỗi, hệ thống đang bận. Bạn thử lại sau nhé."
+            answer = {}
+    else:
+        # Fallback to old logic if no LLM
+        msg = "Chức năng lộ trình chi tiết yêu cầu bật LLM."
+        answer = {}
 
     rag_service.update_session_payload(session_id, {"last_action": "ROADMAP"})
     rag_service.append_message(session_id, "user", question)
-
-    intro = f"Mình tạo lộ trình 14 ngày dựa trên những kỹ năng bạn đang thiếu cho job **{clean_text(job_meta.get('job_title') or '')}**. Ưu tiên thiếu kỹ năng bắt buộc trước."
-    intro = build_empathy_message(
-        question=question,
-        job_meta=job_meta,
-        cand_meta=cand_meta,
-        fit=fit,
-        extra={"roadmap_14_days": plan, "current_state": current_state},
-        history=history,
-        fallback=intro,
-    )
-    lines = [intro]
-    for item in plan:
-        day = item.get("day")
-        focus = clean_text(item.get("focus"))
-        task = clean_text(item.get("task"))
-        label = f"Ngày {day}" if day else "Ngày"
-        if focus:
-            label = f"{label} - {focus}"
-        if task:
-            lines.append(f"{label}: {task}")
-        else:
-            lines.append(label)
-
-    msg = "\n".join([x for x in lines if x]).strip()
     rag_service.append_message(session_id, "assistant", msg)
 
     return api_ok(
-        {"view": "candidate_roadmap", "result": {"job_id": job_id, "candidate_id": candidate_id, "fit": rag_service._jsonable(fit), "roadmap_14_days": plan}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+        {"view": "candidate_roadmap", "result": {"job_id": job_id, "roadmap": answer}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
         message=msg,
+    )
+
+
+def handle_cover_letter_gen(candidate_id: str, question: str, session_id: str, job_id: Optional[str] = None):
+    sess = rag_service.get_session(session_id) or {}
+    payload = sess.get("payload") or {}
+    
+    job_id = clean_text(job_id or payload.get("selected_job_id"))
+    if not job_id:
+        msg = "Bạn chưa chọn job. Gõ: 'tìm job ...' rồi 'chọn 1' trước nhé."
+        rag_service.append_message(session_id, "user", question)
+        rag_service.append_message(session_id, "assistant", msg)
+        return api_err(msg, 400)
+
+    job_meta = rag_service.get_job_meta(job_id)
+    cand_meta = rag_service.get_candidate_meta(candidate_id)
+    if not job_meta or not cand_meta:
+        return api_err("Data not found.", 404)
+
+    fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
+
+    if is_llm_enabled():
+        prompt = rag_service.build_cover_letter_prompt(job_meta, cand_meta, fit)
+        # We expect raw markdown text here, not JSON
+        try:
+            letter_content = llm_service.ask(prompt, question)
+            msg = f"✉️ **Thư xin việc gợi ý cho bạn:**\n\n{letter_content}"
+        except Exception as exc:
+            logger.error("Cover Letter LLM failed: %s", exc)
+            msg = "Xin lỗi, mình không thể tạo Cover Letter lúc này."
+    else:
+        msg = "Chức năng Cover Letter yêu cầu bật LLM."
+
+    rag_service.append_message(session_id, "user", question)
+    rag_service.append_message(session_id, "assistant", msg)
+    
+    return api_ok(
+        {"view": "candidate_general", "result": {"cover_letter": msg}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+        message=msg
+    )
+
+
+def handle_cv_critique(candidate_id: str, question: str, session_id: str, job_id: Optional[str] = None):
+    sess = rag_service.get_session(session_id) or {}
+    payload = sess.get("payload") or {}
+    
+    job_id = clean_text(job_id or payload.get("selected_job_id"))
+    if not job_id:
+        msg = "Bạn chưa chọn job để đối chiếu CV. Hãy chọn job trước nhé."
+        rag_service.append_message(session_id, "user", question)
+        rag_service.append_message(session_id, "assistant", msg)
+        return api_err(msg, 400)
+
+    job_meta = rag_service.get_job_meta(job_id)
+    cand_meta = rag_service.get_candidate_meta(candidate_id)
+    if not job_meta or not cand_meta:
+        return api_err("Data not found.", 404)
+
+    fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
+    answer = {}
+
+    if is_llm_enabled():
+        prompt = rag_service.build_cv_critique_prompt(job_meta, cand_meta, fit)
+        schema_hint = """{
+            "ats_score": 0.0,
+            "summary": "string",
+            "issues": [{"type": "string", "detail": "string", "suggestion": "string"}],
+            "improvements": ["string"]
+        }"""
+        try:
+            answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
+            if isinstance(answer, dict):
+                msg = f"📊 **Đánh giá CV (ATS Score: {answer.get('ats_score')}/10)**\n\n"
+                msg += f"{clean_text(answer.get('summary'))}\n\n"
+                msg += "**Vấn đề cần sửa ngay:**\n"
+                for i in answer.get("issues", [])[:3]:
+                    msg += f"- ⚠️ {i.get('type')}: {i.get('detail')} -> *Gợi ý: {i.get('suggestion')}*\n"
+            else:
+                msg = "Không thể phân tích CV lúc này."
+        except Exception as exc:
+            logger.error("CV Critique LLM failed: %s", exc)
+            msg = "Lỗi hệ thống khi phân tích CV."
+    else:
+        msg = "Chức năng này cần LLM."
+
+    rag_service.append_message(session_id, "user", question)
+    rag_service.append_message(session_id, "assistant", msg)
+    
+    return api_ok(
+        {"view": "candidate_cv_critique", "result": {"critique": answer}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+        message=msg
     )
 
 
@@ -1009,7 +1105,7 @@ def candidate_unknown_fallback(candidate_id: str, question: str, session_id: str
         "Mình chưa rõ ý bạn lắm. Bạn thử nói theo mẫu: "
         "“tìm job backend ở Đà Nẵng remote” hoặc “xem CV tôi tìm job phù hợp”."
     )
-    if str(os.getenv("LLM_ENABLED", "true")).lower() != "true":
+    if not is_llm_enabled():
         return fallback
 
     payload = payload or {}
@@ -1344,21 +1440,76 @@ def handle_recruiter_compare(job_id: str, question: str, session_id: str, payloa
     if not job_meta:
         return api_err("Job facts not found. Run ingest_jobs.py", 404)
 
-    a_md = rag_service.get_candidate_meta(ids[0]) or {}
-    b_md = rag_service.get_candidate_meta(ids[1]) or {}
-    if not a_md or not b_md:
-        msg = "Không đủ dữ liệu để so sánh 2 ứng viên này."
+    # 1. Fetch metadata
+    candidates_meta = rag_service.get_candidates_meta_batch(ids)
+    if len(candidates_meta) < 2:
+        msg = "Không đủ dữ liệu ứng viên để so sánh."
         rag_service.append_message(session_id, "user", question)
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "recruiter_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
 
-    a_fit = rag_service.compute_fit(job_meta, a_md, audience="recruiter")
-    b_fit = rag_service.compute_fit(job_meta, b_md, audience="recruiter")
-    msg = build_compare_message(clean_text(job_meta.get("job_title") or ""), a_md, b_md, a_fit, b_fit)
+    # 2. Compute fits
+    fits = {}
+    for cid, md in candidates_meta.items():
+        fits[cid] = rag_service.compute_fit(job_meta, md, audience="recruiter")
+
+    # 3. LLM Deep Compare
+    if str(os.getenv("LLM_ENABLED", "true")).lower() == "true":
+        prompt = rag_service.build_recruiter_compare_prompt(question, job_meta, candidates_meta, fits)
+        schema_hint = """{
+          "comparison_table": [{"criteria": "string", "candidate_a": "string", "candidate_b": "string"}],
+          "analysis": [{"candidate_id": "string", "pros": ["string"], "cons": ["string"]}],
+          "conclusion": "string",
+          "recommendation": "string"
+        }"""
+        
+        try:
+            answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
+            
+            # Format message from LLM result
+            if isinstance(answer, dict) and answer.get("conclusion"):
+                msg = clean_text(answer.get("conclusion"))
+                if answer.get("recommendation"):
+                    msg += f"\n\n💡 {clean_text(answer['recommendation'])}"
+            else:
+                # Fallback message
+                msg = build_compare_message(clean_text(job_meta.get("job_title") or ""), 
+                                         candidates_meta.get(ids[0], {}), 
+                                         candidates_meta.get(ids[1], {}), 
+                                         fits.get(ids[0], {}), 
+                                         fits.get(ids[1], {}))
+        except Exception as exc:
+            logger.error("Deep compare LLM failed: %s", exc)
+            msg = build_compare_message(clean_text(job_meta.get("job_title") or ""), 
+                                     candidates_meta.get(ids[0], {}), 
+                                     candidates_meta.get(ids[1], {}), 
+                                     fits.get(ids[0], {}), 
+                                     fits.get(ids[1], {}))
+            answer = {}
+    else:
+         msg = build_compare_message(clean_text(job_meta.get("job_title") or ""), 
+                                  candidates_meta.get(ids[0], {}), 
+                                  candidates_meta.get(ids[1], {}), 
+                                  fits.get(ids[0], {}), 
+                                  fits.get(ids[1], {}))
+         answer = {}
 
     rag_service.append_message(session_id, "user", question)
     rag_service.append_message(session_id, "assistant", msg)
-    return api_ok({"view": "recruiter_compare", "result": {"job_id": job_id, "candidate_ids": ids, "compare": {"candidate_a": {"candidate_id": ids[0], "fit": a_fit}, "candidate_b": {"candidate_id": ids[1], "fit": b_fit}}}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
+    
+    return api_ok({
+        "view": "recruiter_compare", 
+        "result": {
+            "job_id": job_id, 
+            "candidate_ids": ids, 
+            "answer": answer,  # Rich data for UI
+            "compare": {
+                "candidate_a": {"candidate_id": ids[0], "fit": fits.get(ids[0])},
+                "candidate_b": {"candidate_id": ids[1], "fit": fits.get(ids[1])}
+            }
+        }, 
+        "state": session_to_state(rag_service.get_session(session_id) or {}, 20)
+    }, message=msg)
 
 
 def handle_recruiter_interview_prep(job_id: str, question: str, session_id: str, payload: dict):
@@ -1373,6 +1524,7 @@ def handle_recruiter_interview_prep(job_id: str, question: str, session_id: str,
     if not job_meta:
         return api_err("Job facts not found. Run ingest_jobs.py", 404)
 
+    # Generic pack if no candidate selected
     if not candidate_id:
         required = job_meta.get("job_required_skills_known_display") or []
         critical = job_meta.get("job_critical_skills_display") or []
@@ -1387,21 +1539,65 @@ def handle_recruiter_interview_prep(job_id: str, question: str, session_id: str,
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "recruiter_interview_prep", "result": {"job_id": job_id, "candidate_id": None, "questions": questions[:5]}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
 
+    # Candidate specific
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not cand_meta:
         return api_err("Candidate facts not found. Run ingest_candidates.py", 404)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="recruiter")
-    pack = rag_service.build_interview_pack(job_title=clean_text(job_meta.get("job_title") or ""), matched=fit.get("matched") or [], missing=fit.get("missing") or [], missing_critical=fit.get("missing_critical") or [])
-    questions = pack.get("questions") or []
-    msg_lines = ["Gợi ý câu hỏi phỏng vấn (tập trung vào điểm thiếu):"]
-    for q in questions[:5]:
-        msg_lines.append(f"- {q.get('question')}")
-    msg = "\n".join(msg_lines)
+    
+    # Try LLM Generation
+    questions = []
+    llm_success = False
+    
+    if str(os.getenv("LLM_ENABLED", "true")).lower() == "true":
+        prompt = rag_service.build_recruiter_interview_prompt(question, job_meta, cand_meta, fit)
+        schema_hint = """{
+            "intro": "string",
+            "questions": [{"focus": "string", "question": "string", "rubric": ["string"]}]
+        }"""
+        try:
+            answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
+            if isinstance(answer, dict) and answer.get("questions"):
+                questions = answer["questions"]
+                msg = clean_text(answer.get("intro") or "Dưới đây là bộ câu hỏi phỏng vấn đề xuất:")
+                llm_success = True
+        except Exception as exc:
+            logger.error("Interview gen LLM failed: %s", exc)
+
+    # Fallback to static if LLM failed or disabled
+    if not questions:
+        pack = rag_service.build_interview_pack(
+            job_title=clean_text(job_meta.get("job_title") or ""), 
+            matched=fit.get("matched") or [], 
+            missing=fit.get("missing") or [], 
+            missing_critical=fit.get("missing_critical") or []
+        )
+        questions = pack.get("questions") or []
+        msg = "Hệ thống tự động gợi ý câu hỏi dựa trên kỹ năng còn thiếu:"
+
+    # Format text response
+    msg_lines = [msg]
+    for i, q in enumerate(questions[:5], 1):
+        q_text = q.get('question')
+        msg_lines.append(f"{i}. {q_text}")
+    
+    final_msg = "\n".join(msg_lines)
 
     rag_service.append_message(session_id, "user", question)
-    rag_service.append_message(session_id, "assistant", msg)
-    return api_ok({"view": "recruiter_interview_prep", "result": {"job_id": job_id, "candidate_id": candidate_id, "fit": fit, "questions": questions[:5]}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
+    rag_service.append_message(session_id, "assistant", final_msg)
+    
+    return api_ok({
+        "view": "recruiter_interview_prep", 
+        "result": {
+            "job_id": job_id, 
+            "candidate_id": candidate_id, 
+            "fit": fit, 
+            "questions": questions,
+            "llm_generated": llm_success
+        }, 
+        "state": session_to_state(rag_service.get_session(session_id) or {}, 20)
+    }, message=final_msg)
 
 
 def handle_recruiter_rank(
@@ -1492,6 +1688,133 @@ def handle_recruiter_rank(
     rag_service.append_message(session_id, "assistant", msg)
 
     return api_ok({"view": "recruiter_ranking", "result": {"job_id": job_id, "candidate_ids": candidate_ids, "answer": answer, "ranked": ranked[:50]}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
+
+
+def handle_recruiter_generate_jd(question: str, session_id: str):
+    sess = rag_service.get_session(session_id) or {}
+    
+    # Extract keywords (naive)
+    keywords = question
+    # remove trigger words
+    keywords = re.sub(r"\b(soạn|viết|tạo|mô tả|jd|job description)\b", "", keywords, flags=re.I).strip()
+    
+    if not keywords or len(keywords) < 3:
+        msg = "Bạn muốn viết JD cho vị trí nào? Hãy cung cấp thêm thông tin (VD: 'soạn JD cho Python Dev 3 năm kinh nghiệm')."
+        rag_service.append_message(session_id, "user", question)
+        rag_service.append_message(session_id, "assistant", msg)
+        return api_ok({"view": "recruiter_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
+
+    if str(os.getenv("LLM_ENABLED", "true")).lower() != "true":
+        # Fallback dummy JD if LLM disabled
+        answer = {
+            "job_title": f"Dự thảo JD từ {keywords}",
+            "summary": f"Mô tả công việc cho {keywords} (bản nháp hệ thống)",
+            "responsibilities": ["Phát triển tính năng", "Review code", "Viết test", "Hỗ trợ team"],
+            "requirements": ["Kinh nghiệm liên quan", "Kỹ năng giao tiếp", "Chủ động"],
+            "benefits": ["Bảo hiểm đầy đủ", "Lương cạnh tranh"],
+            "call_to_action": "Gửi CV ngay!"
+        }
+    else:
+        prompt = rag_service.build_jd_generation_prompt(keywords)
+        schema_hint = """{
+          "job_title": "string",
+          "summary": "string",
+          "responsibilities": ["string"],
+          "requirements": ["string"],
+          "benefits": ["string"],
+          "call_to_action": "string"
+        }"""
+        
+        answer = {}
+        try:
+            answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
+        except Exception as exc:
+            logger.error("JD Gen failed: %s", exc)
+            answer = {}
+
+    msg = ""
+    if isinstance(answer, dict) and answer.get("job_title"):
+        msg = f"📋 **Dự thảo JD: {answer.get('job_title')}**\n\n"
+        msg += f"**Tóm tắt:** {answer.get('summary')}\n\n"
+        msg += "**Trách nhiệm:**\n" + "\n".join([f"- {x}" for x in answer.get("responsibilities", [])]) + "\n\n"
+        msg += "**Yêu cầu:**\n" + "\n".join([f"- {x}" for x in answer.get("requirements", [])]) + "\n\n"
+        msg += "**Quyền lợi:**\n" + "\n".join([f"- {x}" for x in answer.get("benefits", [])])
+    else:
+        msg = "Xin lỗi, mình chưa tạo được JD lúc này."
+
+    rag_service.append_message(session_id, "user", question)
+    rag_service.append_message(session_id, "assistant", msg)
+    
+    return api_ok(
+        {"view": "recruiter_jd_gen", "result": {"jd": answer}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+        message=msg
+    )
+
+
+def handle_recruiter_outreach(question: str, session_id: str, payload: dict, intent_override: Optional[str] = None):
+    # Determine intent type
+    q = question.lower()
+    intent_type = intent_override or "CONTACT"
+    if not intent_override:
+        if "từ chối" in q or "tu choi" in q or "reject" in q:
+            intent_type = "REJECT"
+        elif "mời" in q or "moi" in q or "phỏng vấn" in q or "interview" in q:
+            intent_type = "INVITE"
+        elif "offer" in q:
+            intent_type = "OFFER"
+    
+    # Check context (candidate_ids or specific candidate)
+    cand_ids = payload.get("candidate_ids") or []
+    if not cand_ids:
+         msg = "Bạn chưa chọn ứng viên nào để gửi mail. Hãy chọn ứng viên từ danh sách trước."
+         rag_service.append_message(session_id, "user", question)
+         rag_service.append_message(session_id, "assistant", msg)
+         return api_err(msg, 400)
+    
+    target_cid = cand_ids[0] # Pick first for now
+    
+    job_id = payload.get("job_id")
+    job_meta = (rag_service.get_job_meta(job_id) or {}) if job_id else {}
+    cand_meta = rag_service.get_candidate_meta(target_cid) or {}
+
+    # Extract time for schedule if any
+    extra_context = question
+    
+    prompt = rag_service.build_outreach_email_prompt(job_meta, cand_meta, intent_type, extra_context)
+    schema_hint = """{"subject": "string", "body": "string", "note": "string"}"""
+    
+    answer = {}
+    if str(os.getenv("LLM_ENABLED", "true")).lower() != "true":
+        # Fallback dummy email
+        answer = {
+            "subject": f"Thư {intent_type} - {job_meta.get('job_title', 'Vị trí')}",
+            "body": f"Chào {cand_meta.get('full_name', 'bạn')},\n\nĐây là email mẫu ({intent_type}) do hệ thống tạo tự động vì LLM đang tắt.\n\nTrân trọng,\n{job_meta.get('job_company_name', 'Công ty')}",
+            "note": "Bản nháp tự động (LLM Disabled)"
+        }
+    else:
+        try:
+            answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
+        except Exception as exc:
+            logger.error("Outreach Email failed: %s", exc)
+            answer = {}
+
+    msg = ""
+    if isinstance(answer, dict) and answer.get("subject"):
+        msg = f"📧 **Email Draft ({intent_type})**\n\n"
+        msg += f"**Subject:** {answer.get('subject')}\n\n"
+        msg += f"{answer.get('body')}\n\n"
+        if answer.get("note"):
+            msg += f"_(Note: {answer.get('note')})_"
+    else:
+        msg = "Không thể soạn email lúc này."
+
+    rag_service.append_message(session_id, "user", question)
+    rag_service.append_message(session_id, "assistant", msg)
+    
+    return api_ok(
+        {"view": "recruiter_outreach", "result": {"email": answer, "candidate_id": target_cid, "type": intent_type}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)},
+        message=msg
+    )
 
 
 # ----------------------------
@@ -1633,6 +1956,15 @@ def candidate_chat_general():
         # allow preface from intent (when selecting by number + asking fit)
         preface = clean_text(intent.get("preface") or "")
         return handle_candidate_job_fit(candidate_id, question, session_id, preface=preface)
+
+    if it == "ROADMAP":
+        return handle_candidate_roadmap(candidate_id, question, session_id)
+
+    if it == "COVER_LETTER":
+        return handle_cover_letter_gen(candidate_id, question, session_id)
+
+    if it == "CV_CRITIQUE":
+        return handle_cv_critique(candidate_id, question, session_id)
 
     if it == "ROADMAP":
         return handle_candidate_roadmap(candidate_id, question, session_id)
@@ -1876,6 +2208,13 @@ def recruiter_chat_general():
     # re-route recruiter intent with updated payload
     intent = route_recruiter_intent(question, payload, llm=llm_service)
     it = (intent.get("intent") or "UNKNOWN").upper()
+
+    if it == "GENERATE_JD":
+        return handle_recruiter_generate_jd(question, session_id)
+    if it == "OUTREACH":
+        return handle_recruiter_outreach(question, session_id, payload)
+    if it == "SCHEDULE_INTERVIEW":
+        return handle_recruiter_outreach(question, session_id, payload, intent_override="INVITE")
 
     if it == "GREETING":
         msg = "Chào bạn. Bạn muốn mình xếp hạng top ứng viên, so sánh top1-top2, hay gợi ý câu hỏi phỏng vấn?"

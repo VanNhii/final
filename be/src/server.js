@@ -154,20 +154,20 @@ app.get("/", (req, res) => {
 // Error handling middleware (should be last)
 app.use(errorHandler);
 
-// 404 handler
-app.get(/(.*)/, (req, res, next) => {
-  res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
-});
+// 404 handler - COMMENTED OUT: Was blocking static file serving
+// app.get(/(.*)/, (req, res, next) => {
+//   res.status(404).json({
+//     success: false,
+//     message: "Route not found",
+//   });
+// });
 
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
   console.log(`Socket.IO server initialized for real-time communication`);
-  
+
   // Initialize scheduled jobs for subscription management
   if (process.env.ENABLE_SCHEDULED_JOBS !== 'false') {
     initializeScheduledJobs();

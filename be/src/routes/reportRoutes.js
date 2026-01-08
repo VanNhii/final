@@ -8,6 +8,7 @@ const {
   deleteReport
 } = require('../controllers/reportController');
 
+const { uploadMultiple, handleMulterError } = require('../middleware/upload');
 const { protect, authorize } = require('../middleware/auth');
 
 const router = express.Router();
@@ -17,7 +18,7 @@ router.use(protect); // All routes below require authentication
 router
   .route('/')
   .get(authorize('admin'), getReports)
-  .post(createReport);
+  .post(uploadMultiple.array('evidence', 5), handleMulterError, createReport);
 
 router.get('/my-reports', getMyReports);
 

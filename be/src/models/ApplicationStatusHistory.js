@@ -8,12 +8,12 @@ const applicationStatusHistorySchema = new mongoose.Schema({
   },
   old_status: {
     type: String,
-    enum: ['pending', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'rejected', 'withdrawn'],
+    enum: ['pending', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'accepted', 'rejected', 'withdrawn'],
     required: true
   },
   new_status: {
     type: String,
-    enum: ['pending', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'rejected', 'withdrawn'],
+    enum: ['pending', 'reviewing', 'shortlisted', 'interviewed', 'offered', 'accepted', 'rejected', 'withdrawn'],
     required: true
   },
   changed_by: {

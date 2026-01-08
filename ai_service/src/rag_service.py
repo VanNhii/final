@@ -5,7 +5,6 @@ import os
 import re
 import uuid
 import json
-import logging
 from datetime import timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
@@ -14,6 +13,7 @@ from pymongo import MongoClient
 from pymongo.collection import Collection
 
 from sentence_transformers import SentenceTransformer
+
 # Optional cross-encoder reranker (adds "wow" factor for judge). If unavailable, we fall back to embedding rerank.
 try:
     from sentence_transformers import CrossEncoder  # type: ignore
@@ -25,11 +25,8 @@ from .facts_layer import (
     clean_text,
     now_utc,
     norm_basic,
-    fingerprint_text,
 )
 from .chat_prefs import ChatPrefs
-
-logger = logging.getLogger(__name__)
 
 
 def _to_oid(x: Any) -> Optional[ObjectId]:
@@ -65,7 +62,6 @@ class RAGService:
 
         rag_col_name = os.getenv("RAG_COLLECTION", "rag_chunks")
         sess_col_name = os.getenv("RAG_SESSIONS_COLLECTION", "rag_sessions")
-        history_col_name = os.getenv("CHAT_HISTORY_COLLECTION", "chat_history_sessions")
 
         if not mongo_uri:
             raise RuntimeError("Missing MONGODB_URI")
@@ -75,7 +71,6 @@ class RAGService:
 
         self.rag_col: Collection = self.db[rag_col_name]
         self.sessions_col: Collection = self.db[sess_col_name]
-        self.history_col: Collection = self.db[history_col_name]
 
         self.vector_index = os.getenv("VECTOR_INDEX_NAME", "vector_index")
         self.text_index = os.getenv("TEXT_INDEX_NAME", "rag_text_index")
@@ -91,8 +86,6 @@ class RAGService:
         # Accept both env names to avoid mismatched configs between scripts and runtime
         skills_path = os.getenv("SKILLS_JSON_PATH") or os.getenv("SKILLS_CONFIG_PATH") or "./config/skills.json"
         self.skill_norm = SkillNormalizer(config_path=skills_path)
-        self.skill_templates_path = os.getenv("SKILL_TEMPLATES_PATH") or "./config/skill_templates.json"
-        self.skill_templates = self._load_skill_templates()
 
         # Optional reranker (CrossEncoder). Enable by setting RERANK_MODEL (e.g. "cross-encoder/ms-marco-MiniLM-L-6-v2").
         self.rerank_model_name = os.getenv("RERANK_MODEL", "").strip()
@@ -105,17 +98,6 @@ class RAGService:
         # TTL index for sessions: expire at expires_at
         try:
             self.sessions_col.create_index("expires_at", expireAfterSeconds=0, name="ttl_expires_at")
-        except Exception:
-            pass
-        try:
-            self.history_col.create_index(
-                [("owner_id", 1), ("kind", 1), ("updated_at", -1)],
-                name="history_owner_kind_updated",
-            )
-            self.history_col.create_index(
-                [("session_id", 1)],
-                name="history_session_id",
-            )
         except Exception:
             pass
         # helpful lookup indexes for rag_chunks (non-Atlas)
@@ -157,125 +139,13 @@ class RAGService:
         payload.update(patch or {})
         self.sessions_col.update_one({"session_id": session_id}, {"$set": {"payload": payload}})
 
-    def append_message(self, session_id: str, role: str, content: str, meta: Optional[Dict[str, Any]] = None) -> bool:
-        """
-        Append a chat message into:
-        - sessions_col.messages (for the active session)
-        - rag_history (owner_id + kind) for cross-session memory
-
-        Anti-repeat: if the last message in the session has the same role + same normalized content,
-        it will NOT be appended again. Returns True if appended, False if skipped.
-        """
-        role = (role or "").strip().lower()
-        if role not in ("user", "assistant", "system"):
-            role = "user"
-
-        content_clean = clean_text(content)
-        if not content_clean:
-            return False
-
-        # normalize for dedupe (strip extra whitespace + lower)
-        fp = fingerprint_text(content_clean)
-
-        # Check last message (fast slice projection)
-        try:
-            last = self.sessions_col.find_one({"session_id": session_id}, {"messages": {"$slice": -1}})
-            if last and (last.get("messages") or []):
-                lm = (last["messages"] or [{}])[-1]
-                if (lm.get("role") or "").lower() == role:
-                    last_fp = lm.get("fp") or fingerprint_text(clean_text(lm.get("content") or ""))
-                    if last_fp == fp:
-                        return False
-        except Exception:
-            # never block chat on dedupe failures
-            pass
-
-        now = now_utc()
-        msg_doc = {
-            "at": now,
-            "role": role,
-            "content": content_clean,
-            "fp": fp,
-        }
-        if meta and isinstance(meta, dict):
-            msg_doc["meta"] = meta
-
-        # Cap session messages
-        try:
-            max_msgs = int(os.getenv("CHAT_SESSION_MAX_MESSAGES", "200"))
-        except Exception:
-            max_msgs = 200
-        max_msgs = max(50, min(max_msgs, 2000))
-
+    def append_message(self, session_id: str, role: str, content: str) -> None:
+        if not session_id:
+            return
         self.sessions_col.update_one(
             {"session_id": session_id},
-            {
-                "$push": {"messages": {"$each": [msg_doc], "$slice": -max_msgs}},
-                "$set": {"updated_at": now},
-            },
+            {"$push": {"messages": {"at": now_utc(), "role": role, "content": clean_text(content)}}},
         )
-
-        # If we know owner_id + kind, also write to rag_history
-        sess = self.sessions_col.find_one({"session_id": session_id}, {"payload": 1, "kind": 1})
-        if sess:
-            payload = sess.get("payload") or {}
-            kind = sess.get("kind") or payload.get("kind") or payload.get("mode") or ""
-            if kind in ("candidate", "recruiter"):
-                if kind == "candidate":
-                    owner_id = payload.get("candidate_id")
-                else:
-                    owner_id = payload.get("recruiter_user_id") or payload.get("recruiter_id") or payload.get("user_id")
-                owner_id = clean_text(owner_id)
-                if owner_id:
-                    # cap history too
-                    try:
-                        max_hist = int(os.getenv("CHAT_HISTORY_MAX_MESSAGES", "600"))
-                    except Exception:
-                        max_hist = 600
-                    max_hist = max(100, min(max_hist, 5000))
-
-                    self.history_col.update_one(
-                        {"owner_id": owner_id, "kind": kind},
-                        {
-                            "$setOnInsert": {"owner_id": owner_id, "kind": kind, "created_at": now},
-                            "$push": {"messages": {"$each": [msg_doc], "$slice": -max_hist}},
-                            "$set": {"updated_at": now},
-                        },
-                        upsert=True,
-                    )
-        return True
-    def get_history_messages(self, owner_id: str, kind: str, limit: int = 20) -> List[Dict[str, Any]]:
-        owner_id = clean_text(owner_id)
-        kind = clean_text(kind)
-        if not owner_id or not kind:
-            return []
-        limit = max(1, int(limit))
-        session_cap = int(os.getenv("CHAT_HISTORY_SESSION_LIMIT", "100"))
-        cur = (
-            self.history_col.find({"owner_id": owner_id, "kind": kind})
-            .sort("updated_at", -1)
-            .limit(max(1, session_cap))
-        )
-        out: List[Dict[str, Any]] = []
-        for sess in cur:
-            session_id = sess.get("session_id")
-            messages = sess.get("messages") or []
-            for msg in reversed(messages):
-                if msg and msg.get("content"):
-                    out.append(
-                        {
-                            "role": msg.get("role"),
-                            "content": msg.get("content"),
-                            "at": msg.get("at"),
-                            "session_id": session_id,
-                        }
-                    )
-                if len(out) >= limit:
-                    break
-            if len(out) >= limit:
-                break
-        out.reverse()
-        return out
 
     # ----------------------------
     # Embedder / scoring
@@ -361,34 +231,6 @@ class RAGService:
                 out[str(cid)] = md
         return out
 
-    def get_applied_candidate_ids(self, job_id: str, statuses: Optional[List[str]] = None, limit: Optional[int] = None) -> List[str]:
-        oid = _to_oid(job_id)
-        job_id_clean = clean_text(job_id)
-        if not oid and not job_id_clean:
-            return []
-
-        if oid:
-            query: Dict[str, Any] = {"job_id": {"$in": [oid, job_id_clean]}}
-        else:
-            query = {"job_id": job_id_clean}
-
-        if statuses:
-            norm_statuses = [clean_text(s) for s in statuses if clean_text(s)]
-            if norm_statuses:
-                query["application_status"] = {"$in": norm_statuses}
-
-        cur = self.db["applications"].find(query, {"candidate_id": 1})
-        if limit:
-            cur = cur.limit(int(limit))
-
-        out: List[str] = []
-        for d in cur:
-            cid = d.get("candidate_id")
-            if cid:
-                out.append(str(cid))
-
-        return _dedupe_keep_order(out)
-
     # ----------------------------
     # Retrieval: Atlas Vector + Atlas Search
     # ----------------------------
@@ -404,11 +246,7 @@ class RAGService:
         return f
 
     def vector_search(self, query: str, doc_type: str, visibility: str = "", filters: Optional[Dict[str, Any]] = None, limit: int = 20) -> List[Dict[str, Any]]:
-        try:
-            qemb = self.embed(query)
-        except Exception as exc:
-            logger.warning("Vector search embedding failed: %s", exc, exc_info=True)
-            return []
+        qemb = self.embed(query)
         flt = self._filters(doc_type, visibility, filters)
         
         # Try with filters first, fallback to no filters if index error
@@ -489,11 +327,7 @@ class RAGService:
             {"$limit": limit},
             {"$project": {"_id": 1, "text": 1, "metadata": 1, "score": {"$meta": "searchScore"}}},
         ]
-        try:
-            return list(self.rag_col.aggregate(pipeline))
-        except Exception as exc:
-            logger.warning("Text search failed: %s", exc, exc_info=True)
-            return []
+        return list(self.rag_col.aggregate(pipeline))
 
     def hybrid_search(self, query: str, doc_type: str, visibility: str = "", filters: Optional[Dict[str, Any]] = None, limit: int = 10) -> List[Dict[str, Any]]:
         """
@@ -522,22 +356,7 @@ class RAGService:
             it["rrf_score"] = scores[_id]
             out.append(it)
         # optional high-precision rerank for top-N
-        if out:
-            return self._cross_rerank(query, out, topk=self.rerank_topk)
-
-        # Fallback: basic find if both searches fail
-        basic_flt: Dict[str, Any] = {"metadata.doc_type": doc_type}
-        if visibility:
-            basic_flt["metadata.visibility"] = visibility
-        for kf, vf in (filters or {}).items():
-            if vf is None:
-                continue
-            basic_flt[kf] = vf
-        try:
-            cur = self.rag_col.find(basic_flt, {"_id": 1, "text": 1, "metadata": 1}).limit(limit)
-            return list(cur)
-        except Exception:
-            return []
+        return self._cross_rerank(query, out, topk=self.rerank_topk)
 
     # ----------------------------
     # Chunk fetch + rerank
@@ -555,13 +374,9 @@ class RAGService:
         """
         if not texts:
             return []
-        try:
-            qemb = self.embed(query)
-            # embed candidates in batch for speed
-            embs = self._get_embedder().encode(texts, normalize_embeddings=True)
-        except Exception as exc:
-            logger.warning("Rerank embeddings failed: %s", exc, exc_info=True)
-            return texts[: max(1, k)]
+        qemb = self.embed(query)
+        # embed candidates in batch for speed
+        embs = self._get_embedder().encode(texts, normalize_embeddings=True)
         scored = []
         for t, e in zip(texts, embs):
             scored.append((float(sum(a*b for a, b in zip(qemb, e.tolist()))), t))
@@ -619,7 +434,7 @@ class RAGService:
         if not exp_ok:
             hard_reasons.append("Thiếu kinh nghiệm so với yêu cầu tối thiểu")
         if missing_critical:
-            hard_reasons.append("Thiếu kỹ năng bắt buộc")
+            hard_reasons.append("Thiếu kỹ năng critical")
 
         return {
             "score": round(score, 1),
@@ -633,76 +448,6 @@ class RAGService:
     # ----------------------------
     # Value-add layer
     # ----------------------------
-    def _load_skill_templates(self) -> Dict[str, Any]:
-        path = self.skill_templates_path
-        if not path or not os.path.exists(path):
-            return {}
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            return {}
-        return data if isinstance(data, dict) else {}
-
-    def _get_skill_templates(self, category: str, kind: str) -> List[Dict[str, Any]]:
-        data = self.skill_templates or {}
-        if not isinstance(data, dict):
-            return []
-        defaults = data.get("default") or {}
-        categories = data.get("categories") or {}
-        cat_block = categories.get(category) or {}
-        templates = cat_block.get(kind) or defaults.get(kind) or []
-        if isinstance(templates, list):
-            return templates
-        return []
-
-    def _fallback_templates(self, kind: str) -> List[Dict[str, Any]]:
-        if kind == "interview":
-            return [
-                {
-                    "question": "Bạn đã từng dùng {skill} chưa? Hãy mô tả một tình huống bạn áp dụng nó.",
-                    "rubric": ["Bối cảnh rõ ràng", "Quyết định có lý do", "Kết quả/ảnh hưởng"],
-                },
-                {
-                    "question": "Giải thích khái niệm cốt lõi của {skill} và khi nào nên dùng.",
-                    "rubric": ["Đúng khái niệm", "Nêu được use cases", "Hiểu tradeoffs"],
-                },
-            ]
-        return [
-            {
-                "action": "Ôn lý thuyết nền tảng về {skill} và ghi chú 10 ý chính.",
-                "topics": ["khái niệm cốt lõi", "use cases"],
-                "keywords": ["{skill} basics", "{skill} overview"],
-            },
-            {
-                "action": "Thực hành {skill} qua bài tập nhỏ/mini project.",
-                "topics": ["thực hành", "phản hồi"],
-                "keywords": ["{skill} practice", "{skill} mini project"],
-            },
-            {
-                "action": "Nâng cấp: áp dụng {skill} vào tình huống thực tế và rút kinh nghiệm.",
-                "topics": ["best practices", "tradeoffs"],
-                "keywords": ["{skill} best practices", "{skill} pitfalls"],
-            },
-        ]
-
-    def _render_template(self, text: Any, **kwargs: Any) -> str:
-        value = clean_text(text)
-        if not value:
-            return ""
-        try:
-            return value.format(**kwargs)
-        except Exception:
-            return value
-
-    def _render_list(self, items: Iterable[Any], **kwargs: Any) -> List[str]:
-        rendered: List[str] = []
-        for item in items or []:
-            out = self._render_template(item, **kwargs)
-            if out:
-                rendered.append(out)
-        return rendered
-
     def generate_roadmap_14_days(self, *, missing: List[str], missing_critical: List[str], job_title: str = "") -> List[Dict[str, Any]]:
         """Deterministic 14-day plan driven by missing skills (demo-safe, no hallucination).
 
@@ -711,8 +456,7 @@ class RAGService:
         # Prioritize critical first
         skills = [clean_text(s) for s in (missing_critical + missing) if clean_text(s)]
         # de-dup, preserve order
-        seen = set()
-        ordered: List[str] = []
+        seen = set(); ordered: List[str] = []
         for s in skills:
             k = s.lower()
             if k not in seen:
@@ -720,215 +464,40 @@ class RAGService:
                 seen.add(k)
 
         if not ordered:
-            # When there is nothing missing, propose interview + portfolio polishing
-            ordered = ["CV t?i ?u", "Portfolio", "System design", "Luy?n ph?ng v?n"]
+            # When there's nothing missing, propose interview + portfolio polishing
+            ordered = ["CV tối ưu", "Portfolio", "System design", "Interview practice"]
 
-        def format_task(action: str, topics: List[str], keywords: List[str]) -> str:
-            parts = [action]
-            if topics:
-                parts.append(f"Ch? ?? ch?nh: {', '.join(topics)}.")
-            if keywords:
-                parts.append(f"T? kh?a t?m hi?u: {', '.join(keywords)}.")
-            parts.append("Ngu?n g?i ?: t?i li?u ch?nh th?c + tutorial/video uy t?n.")
-            return " ".join(parts).strip()
-
-        def pick_template(templates: List[Dict[str, Any]], repeat: int) -> Dict[str, Any]:
-            idx = min(max(repeat - 1, 0), len(templates) - 1)
-            return templates[idx]
-
-        def day_task(skill: str, repeat: int) -> str:
-            category = self.skill_norm.category_for_skill(skill)
-            templates = self._get_skill_templates(category, "roadmap")
-            if not templates:
-                templates = self._fallback_templates("roadmap")
-            t = pick_template(templates, repeat) if templates else {}
-            if not isinstance(t, dict):
-                t = {}
-            action = self._render_template(t.get("action"), skill=skill, category=category)
-            topics = self._render_list(t.get("topics") or [], skill=skill, category=category)
-            keywords = self._render_list(t.get("keywords") or [], skill=skill, category=category)
-            if not action:
-                action = f"?n t?p {skill} theo l? tr?nh c? b?n."
-            return format_task(action, topics, keywords)
+        # Simple template bank
+        def day_task(skill: str, day: int) -> str:
+            if "react" in skill.lower():
+                return "Làm 1 mini feature: form + validation + state management (hooks). Viết README nêu decisions."
+            if "node" in skill.lower() or "express" in skill.lower() or "nest" in skill.lower():
+                return "Tạo 1 REST API nhỏ: auth JWT + CRUD + validation. Có tests tối thiểu."
+            if "sql" in skill.lower() or "mysql" in skill.lower() or "postgres" in skill.lower():
+                return "Ôn ERD + viết 10 query từ cơ bản đến join/group by/index. Ghi chú best practices."
+            if "docker" in skill.lower():
+                return "Dockerize project: multi-stage build, docker-compose, env vars. Push repo."
+            if "kubernetes" in skill.lower() or "k8s" in skill.lower():
+                return "Ôn deployment/service/ingress. Viết manifest mẫu cho một app nhỏ."
+            if "aws" in skill.lower() or "gcp" in skill.lower() or "azure" in skill.lower():
+                return "Chọn 1 dịch vụ cloud liên quan job; làm 1 lab nhỏ (deploy app / storage / queue)."
+            if "system design" in skill.lower() or "microservices" in skill.lower():
+                return "Làm 1 bài system design: requirements -> API -> DB -> scaling -> tradeoffs (1 trang)."
+            if "testing" in skill.lower() or "qa" in skill.lower() or "pytest" in skill.lower():
+                return "Viết test suite tối thiểu: unit + integration. Thiết lập coverage."
+            # default
+            return f"Ôn kỹ năng **{skill}**: 30 phút học + 60 phút thực hành + 15 phút ghi chú/flashcards."
 
         plan: List[Dict[str, Any]] = []
-        counts: Dict[str, int] = {}
         for day in range(1, 15):
             skill = ordered[(day - 1) % len(ordered)]
-            key = skill.lower()
-            counts[key] = counts.get(key, 0) + 1
-            task = day_task(skill, counts[key])
+            task = day_task(skill, day)
             title = clean_text(job_title)
-            prefix = f"(M?c ti?u: {title}) " if title else ""
+            prefix = f"(Target: {title}) " if title else ""
             plan.append({"day": day, "focus": skill, "task": prefix + task})
         return plan
+
     def build_interview_pack(self, *, job_title: str, matched: List[str], missing: List[str], missing_critical: List[str]) -> Dict[str, Any]:
-        """Generate a deterministic interview simulation pack (questions + scoring rubric)."""
-        title = clean_text(job_title) or "v? tr? ?? ch?n"
-
-        focus = [clean_text(x) for x in (missing_critical + missing) if clean_text(x)]
-        if not focus:
-            focus = ["System design", "Behavioral", "Project deep dive"]
-
-        def pick_template(templates: List[Dict[str, Any]], repeat: int) -> Dict[str, Any]:
-            idx = min(max(repeat - 1, 0), len(templates) - 1)
-            return templates[idx]
-
-        questions: List[Dict[str, Any]] = []
-        counts: Dict[str, int] = {}
-        for i, sk in enumerate(focus[:6], start=1):
-            category = self.skill_norm.category_for_skill(sk)
-            counts[category] = counts.get(category, 0) + 1
-            templates = self._get_skill_templates(category, "interview")
-            if not templates:
-                templates = self._fallback_templates("interview")
-            t = pick_template(templates, counts[category]) if templates else {}
-            if not isinstance(t, dict):
-                t = {}
-            q = self._render_template(t.get("question"), skill=sk, job_title=title, category=category)
-            rub = self._render_list(t.get("rubric") or [], skill=sk, job_title=title, category=category)
-            if not q:
-                q = f"B?n ?? t?ng d?ng {sk} ch?a? H?y m? t? m?t t?nh hu?ng b?n ?p d?ng n?."
-                rub = ["B?i c?nh r? r?ng", "Quy?t ??nh c? l? do", "K?t qu?/?nh h??ng"]
-
-            questions.append({"no": i, "focus": sk, "question": q, "rubric": rub})
-
-        behavioral_templates: List[Dict[str, Any]] = []
-        if isinstance(self.skill_templates, dict):
-            raw = self.skill_templates.get("behavioral") or []
-            if isinstance(raw, list):
-                behavioral_templates = raw
-
-        behavioral: List[Dict[str, Any]] = []
-        if behavioral_templates:
-            for idx, item in enumerate(behavioral_templates, start=100):
-                if not isinstance(item, dict):
-                    continue
-                q = self._render_template(item.get("question"), job_title=title)
-                rub = self._render_list(item.get("rubric") or [], job_title=title)
-                if not q:
-                    continue
-                behavioral.append(
-                    {
-                        "no": item.get("no") or idx,
-                        "focus": item.get("focus") or "Behavioral",
-                        "question": q,
-                        "rubric": rub,
-                    }
-                )
-
-        if not behavioral:
-            behavioral = [
-                {
-                    "no": 100,
-                    "focus": "Behavioral",
-                    "question": "K? v? m?t l?n b?n g?p bug kh? v? b?n x? l? th? n?o?",
-                    "rubric": ["Situation-Task-Action-Result", "H?c ???c g?", "Giao ti?p"],
-                },
-                {
-                    "no": 101,
-                    "focus": "Behavioral",
-                    "question": "N?u b? deadline g?p nh?ng scope l?n, b?n ?u ti?n th? n?o?",
-                    "rubric": ["Prioritization", "Communication", "Risk management"],
-                },
-            ]
-
-        return {
-            "title": title,
-            "focus_skills": focus[:6],
-            "matched_skills": matched[:10],
-            "questions": questions + behavioral,
-            "how_to_use": "Tr? l?i t?ng c?u, t? ch?m theo rubric (0-2 ?i?m m?i ti?u ch?).",
-        }
-    def _fallback_templates(self, kind: str) -> List[Dict[str, Any]]:
-        if kind == "interview":
-            return [
-                {
-                    "question": "Bạn đã từng dùng {skill} chưa? Hãy mô tả một tình huống bạn áp dụng nó.",
-                    "rubric": ["Bối cảnh rõ ràng", "Quyết định có lý do", "Kết quả/ảnh hưởng"],
-                },
-                {
-                    "question": "Giải thích khái niệm cốt lõi của {skill} và khi nào nên dùng.",
-                    "rubric": ["Đúng khái niệm", "Nêu được use cases", "Hiểu tradeoffs"],
-                },
-            ]
-        return [
-            {
-                "action": "Ôn lại lý thuyết nền tảng về {skill} và ghi chú 10 ý chính.",
-                "topics": ["khái niệm cốt lõi", "use cases"],
-                "keywords": ["{skill} basics", "{skill} overview"],
-            },
-            {
-                "action": "Thực hành {skill} qua bài tập nhỏ/mini project.",
-                "topics": ["thực hành", "phản hồi"],
-                "keywords": ["{skill} practice", "{skill} mini project"],
-            },
-            {
-                "action": "Nâng cấp: áp dụng {skill} vào tình huống thực tế và rút kinh nghiệm.",
-                "topics": ["best practices", "tradeoffs"],
-                "keywords": ["{skill} best practices", "{skill} pitfalls"],
-            },
-        ]
-
-    def generate_roadmap_14_days(
-        self, *, missing: List[str], missing_critical: List[str], job_title: str = ""
-    ) -> List[Dict[str, Any]]:
-        """Deterministic 14-day plan driven by missing skills (demo-safe, no hallucination)."""
-        skills = [clean_text(s) for s in (missing_critical + missing) if clean_text(s)]
-        seen = set()
-        ordered: List[str] = []
-        for s in skills:
-            k = s.lower()
-            if k not in seen:
-                ordered.append(s)
-                seen.add(k)
-
-        if not ordered:
-            ordered = ["CV tối ưu", "Portfolio", "System design", "Luyện phỏng vấn"]
-
-        def format_task(action: str, topics: List[str], keywords: List[str]) -> str:
-            parts = [action]
-            if topics:
-                parts.append(f"Chủ đề chính: {', '.join(topics)}.")
-            if keywords:
-                parts.append(f"Từ khóa tìm hiểu: {', '.join(keywords)}.")
-            parts.append("Nguồn gợi ý: tài liệu chính thức + tutorial/video uy tín.")
-            return " ".join(parts).strip()
-
-        def pick_template(templates: List[Dict[str, Any]], repeat: int) -> Dict[str, Any]:
-            idx = min(max(repeat - 1, 0), len(templates) - 1)
-            return templates[idx]
-
-        def day_task(skill: str, repeat: int) -> str:
-            category = self.skill_norm.category_for_skill(skill)
-            templates = self._get_skill_templates(category, "roadmap")
-            if not templates:
-                templates = self._fallback_templates("roadmap")
-            t = pick_template(templates, repeat) if templates else {}
-            if not isinstance(t, dict):
-                t = {}
-            action = self._render_template(t.get("action"), skill=skill, category=category)
-            topics = self._render_list(t.get("topics") or [], skill=skill, category=category)
-            keywords = self._render_list(t.get("keywords") or [], skill=skill, category=category)
-            if not action:
-                action = f"Ôn tập {skill} theo lộ trình cơ bản."
-            return format_task(action, topics, keywords)
-
-        plan: List[Dict[str, Any]] = []
-        counts: Dict[str, int] = {}
-        for day in range(1, 15):
-            skill = ordered[(day - 1) % len(ordered)]
-            key = skill.lower()
-            counts[key] = counts.get(key, 0) + 1
-            task = day_task(skill, counts[key])
-            title = clean_text(job_title)
-            prefix = f"(Mục tiêu: {title}) " if title else ""
-            plan.append({"day": day, "focus": skill, "task": prefix + task})
-        return plan
-
-    def build_interview_pack(
-        self, *, job_title: str, matched: List[str], missing: List[str], missing_critical: List[str]
-    ) -> Dict[str, Any]:
         """Generate a deterministic interview simulation pack (questions + scoring rubric)."""
         title = clean_text(job_title) or "vị trí đã chọn"
 
@@ -936,68 +505,34 @@ class RAGService:
         if not focus:
             focus = ["System design", "Behavioral", "Project deep dive"]
 
-        def pick_template(templates: List[Dict[str, Any]], repeat: int) -> Dict[str, Any]:
-            idx = min(max(repeat - 1, 0), len(templates) - 1)
-            return templates[idx]
-
         questions: List[Dict[str, Any]] = []
-        counts: Dict[str, int] = {}
         for i, sk in enumerate(focus[:6], start=1):
-            category = self.skill_norm.category_for_skill(sk)
-            counts[category] = counts.get(category, 0) + 1
-            templates = self._get_skill_templates(category, "interview")
-            if not templates:
-                templates = self._fallback_templates("interview")
-            t = pick_template(templates, counts[category]) if templates else {}
-            if not isinstance(t, dict):
-                t = {}
-            q = self._render_template(t.get("question"), skill=sk, job_title=title, category=category)
-            rub = self._render_list(t.get("rubric") or [], skill=sk, job_title=title, category=category)
-            if not q:
-                q = f"Bạn đã từng dùng {sk} chưa? Hãy mô tả một tình huống bạn áp dụng nó."
-                rub = ["Bối cảnh rõ ràng", "Quyết định có lý do", "Kết quả/ảnh hưởng"]
+            low = sk.lower()
+            if "react" in low:
+                q = "Giải thích useEffect dependency array và cách tránh infinite re-render. Cho ví dụ." 
+                rub = ["Giải thích đúng lifecycle", "Nêu được stale closure", "Đưa ra ví dụ code"]
+            elif "node" in low or "express" in low or "nest" in low:
+                q = "Thiết kế API login + refresh token: flow, security, storage, rotation?"
+                rub = ["JWT/refresh flow", "Security (XSS/CSRF)", "Error handling + rate limit"]
+            elif "sql" in low:
+                q = "Khi nào nên dùng index? Hãy phân tích một query chậm và cách tối ưu." 
+                rub = ["Explain plan", "Index selectivity", "Tradeoffs write overhead"]
+            elif "docker" in low:
+                q = "Multi-stage build là gì? Khi nào dùng? Viết một Dockerfile mẫu." 
+                rub = ["Build vs runtime image", "Layer caching", "ENV/args best practices"]
+            elif "system" in low or "design" in low:
+                q = f"System design: thiết kế một hệ thống tìm kiếm job (giống {title}) ở mức high-level." 
+                rub = ["Requirements", "Data model", "Scaling + tradeoffs"]
+            else:
+                q = f"Bạn đã từng dùng {sk} chưa? Hãy mô tả 1 feature bạn làm có liên quan và các tradeoffs." 
+                rub = ["Context rõ ràng", "Decision reasoning", "Results/metrics"]
 
             questions.append({"no": i, "focus": sk, "question": q, "rubric": rub})
 
-        behavioral_templates: List[Dict[str, Any]] = []
-        if isinstance(self.skill_templates, dict):
-            raw = self.skill_templates.get("behavioral") or []
-            if isinstance(raw, list):
-                behavioral_templates = raw
-
-        behavioral: List[Dict[str, Any]] = []
-        if behavioral_templates:
-            for idx, item in enumerate(behavioral_templates, start=100):
-                if not isinstance(item, dict):
-                    continue
-                q = self._render_template(item.get("question"), job_title=title)
-                rub = self._render_list(item.get("rubric") or [], job_title=title)
-                if not q:
-                    continue
-                behavioral.append(
-                    {
-                        "no": item.get("no") or idx,
-                        "focus": item.get("focus") or "Behavioral",
-                        "question": q,
-                        "rubric": rub,
-                    }
-                )
-
-        if not behavioral:
-            behavioral = [
-                {
-                    "no": 100,
-                    "focus": "Behavioral",
-                    "question": "Kể về một lần bạn gặp bug khó và bạn xử lý thế nào?",
-                    "rubric": ["Situation-Task-Action-Result", "Học được gì", "Giao tiếp"],
-                },
-                {
-                    "no": 101,
-                    "focus": "Behavioral",
-                    "question": "Nếu bị deadline gấp nhưng scope lớn, bạn ưu tiên thế nào?",
-                    "rubric": ["Prioritization", "Communication", "Risk management"],
-                },
-            ]
+        behavioral = [
+            {"no": 100, "focus": "Behavioral", "question": "Kể về một lần bạn gặp bug khó và bạn xử lý thế nào?", "rubric": ["Situation-Task-Action-Result", "Học được gì", "Giao tiếp"]},
+            {"no": 101, "focus": "Behavioral", "question": "Nếu bị deadline gấp nhưng scope lớn, bạn ưu tiên thế nào?", "rubric": ["Prioritization", "Communication", "Risk management"]},
+        ]
 
         return {
             "title": title,
@@ -1007,106 +542,11 @@ class RAGService:
             "how_to_use": "Trả lời từng câu, tự chấm theo rubric (0-2 điểm mỗi tiêu chí).",
         }
 
-    def _role_hint_tokens(self, role_hint: str) -> List[str]:
-        tokens = []
-        for t in norm_basic(role_hint).split():
-            if len(t) < 3:
-                continue
-            if t in {"nhan", "vien", "cong", "ty", "thuc", "tap", "intern"}:
-                continue
-            tokens.append(t)
-        return tokens
-
-    def _role_hint_matches(self, title: str, role_hint: str) -> bool:
-        hint_tokens = self._role_hint_tokens(role_hint)
-        if not hint_tokens:
-            return False
-        title_tokens = set(norm_basic(title).split())
-        overlap = sum(1 for t in hint_tokens if t in title_tokens)
-        if len(hint_tokens) >= 2:
-            return overlap >= 2
-        return overlap >= 1
-
-    def _seniority_rank(self, raw: str) -> int:
-        s = norm_basic(raw)
-        if not s:
-            return -1
-        mapping = {
-            "intern": 0,
-            "fresher": 1,
-            "entry": 1,
-            "junior": 2,
-            "mid": 3,
-            "middle": 3,
-            "senior": 4,
-            "lead": 5,
-            "staff": 5,
-            "principal": 6,
-            "executive": 6,
-            "manager": 6,
-            "head": 6,
-        }
-        for key, val in mapping.items():
-            if key in s:
-                return val
-        return -1
-
-    def _score_job_for_candidate(self, cand: Dict[str, Any], job: Dict[str, Any], prefs: ChatPrefs) -> Tuple[float, float, float, float]:
-        cand_skills = set(norm_basic(x) for x in (cand.get("skills_known_norm") or []) if norm_basic(x))
-        cand_primary = set(norm_basic(x) for x in (cand.get("primary_skills_known_norm") or []) if norm_basic(x))
-        cand_skills = cand_skills.union(cand_primary)
-
-        job_skills = job.get("required_skills_norm") or []
-        if not job_skills:
-            job_skills = [norm_basic(x) for x in (job.get("required_skills") or []) if norm_basic(x)]
-        job_skills = set(norm_basic(x) for x in job_skills if norm_basic(x))
-
-        skill_score = 0.0
-        if job_skills:
-            skill_score = len(cand_skills.intersection(job_skills)) / max(1, len(job_skills))
-
-        pref_city = norm_basic(prefs.city or cand.get("city") or "")
-        job_city = norm_basic(job.get("city") or "")
-        location_score = 1.0 if pref_city and job_city and pref_city == job_city else 0.0
-
-        role_hint = clean_text(prefs.role_hint)
-        role_score = 1.0 if role_hint and self._role_hint_matches(job.get("title") or "", role_hint) else 0.0
-
-        cand_rank = self._seniority_rank(cand.get("seniority_hint") or "")
-        job_rank = self._seniority_rank(job.get("seniority") or "")
-        if cand_rank >= 0 and job_rank >= 0:
-            diff = abs(cand_rank - job_rank)
-            if diff == 0:
-                seniority_score = 1.0
-            elif diff == 1:
-                seniority_score = 0.5
-            else:
-                seniority_score = 0.0
-        else:
-            seniority_score = 0.0
-
-        position_score = max(role_score, seniority_score)
-        retrieval_score = float(job.get("_retrieval_score") or 0.0)
-        return (skill_score, location_score, position_score, retrieval_score)
-
-    def _sort_jobs_for_candidate(self, cand: Dict[str, Any], jobs: List[Dict[str, Any]], prefs: ChatPrefs) -> List[Dict[str, Any]]:
-        scored: List[Tuple[Tuple[float, float, float, float], Dict[str, Any]]] = []
-        for j in jobs:
-            scored.append((self._score_job_for_candidate(cand, j, prefs), j))
-        scored.sort(key=lambda x: x[0], reverse=True)
-        out: List[Dict[str, Any]] = []
-        for _, j in scored:
-            if "_retrieval_score" in j:
-                j.pop("_retrieval_score", None)
-            out.append(j)
-        return out
-
+    # ----------------------------
+    # Suggestions
+    # ----------------------------
     def suggest_jobs(self, query: str, limit: int = 5, prefs: Optional[ChatPrefs] = None) -> List[Dict[str, Any]]:
         prefs = prefs or ChatPrefs()
-        q = clean_text(query)
-        role_hint = clean_text(prefs.role_hint)
-        if role_hint and role_hint.lower() not in q.lower():
-            q = f"{q} {role_hint}".strip()
         filters: Dict[str, Any] = {}
         if prefs.city_norm:
             filters["metadata.job_location_city_norm"] = prefs.city_norm
@@ -1116,7 +556,7 @@ class RAGService:
             # can't do "not equals" in Atlas filter easily here; we'll post-filter
             pass
 
-        rows = self.hybrid_search(query=q, doc_type="job", visibility="public", filters=filters, limit=max(10, limit * 3))
+        rows = self.hybrid_search(query=query, doc_type="job", visibility="public", filters=filters, limit=max(10, limit * 3))
         # aggregate unique job_ids
         job_map: Dict[str, Dict[str, Any]] = {}
         for r in rows:
@@ -1129,7 +569,6 @@ class RAGService:
                 continue
             if prefs.avoid_work_location_norm and md.get("job_work_location_norm") == prefs.avoid_work_location_norm:
                 continue
-            rscore = float(r.get("rrf_score") or r.get("score") or 0.0)
             if sid not in job_map:
                 job_map[sid] = {
                     "job_id": sid,
@@ -1139,102 +578,26 @@ class RAGService:
                     "work_location": md.get("job_work_location"),
                     "seniority": md.get("job_seniority_level"),
                     "required_skills": md.get("job_required_skills_known_display") or [],
-                    "required_skills_norm": md.get("job_required_skills_known_norm") or [],
-                    "_retrieval_score": rscore,
                 }
-            else:
-                prev = float(job_map[sid].get("_retrieval_score") or 0.0)
-                if rscore > prev:
-                    job_map[sid]["_retrieval_score"] = rscore
             if len(job_map) >= limit:
                 break
-        jobs = list(job_map.values())
-        if role_hint:
-            filtered = [j for j in jobs if self._role_hint_matches(j.get("title") or "", role_hint)]
-            if filtered:
-                return filtered[:limit]
-        return jobs
+        return list(job_map.values())
 
     def suggest_jobs_for_candidate(self, candidate_id: str, limit: int = 10, query_hint: str = "", prefs: Optional[ChatPrefs] = None) -> List[Dict[str, Any]]:
         cand = self.get_candidate_meta(candidate_id) or {}
         prefs = prefs or ChatPrefs()
-        # build query from candidate skills + optional user hint
-        stop_raw = {
-            "presentation",
-            "presentation skills",
-            "self learning",
-            "active listening",
-            "teamwork",
-            "communication",
-            "negotiation",
-            "adaptability",
-            "ownership",
-            "growth mindset",
-            "problem solving",
-            "leadership",
-            "time management",
-            "critical thinking",
-        }
-        stop_norm = {norm_basic(x) for x in stop_raw}
-
-        primary = cand.get("primary_skills_known_display") or []
-        known = cand.get("skills_known_display") or []
-        exp = cand.get("skills_from_experience_known_display") or []
-        combined = _dedupe_keep_order(list(primary) + list(known) + list(exp))
-        skills = [s for s in combined if norm_basic(s) and norm_basic(s) not in stop_norm]
-        if not skills:
-            unknown = cand.get("skills_unknown_norm") or []
-            skills = [s for s in unknown if norm_basic(s) and norm_basic(s) not in stop_norm]
-        skills = skills[:8]
+        # build query from candidate primary skills + optional user hint
+        skills = (cand.get("primary_skills_known_display") or [])[:8]
         city = cand.get("city") or prefs.city or ""
         query_parts = []
         if query_hint:
             query_parts.append(query_hint)
-        role_hint = prefs.role_hint or ""
-        if role_hint:
-            query_parts.append(role_hint)
         if skills:
             query_parts.append(" ".join(skills))
         if city:
             query_parts.append(f"ở {city}")
         q = " ".join([clean_text(x) for x in query_parts if clean_text(x)])
-        jobs = self.suggest_jobs(q, limit=limit, prefs=prefs)
-        if jobs:
-            return self._sort_jobs_for_candidate(cand, jobs, prefs)
-        return jobs
-
-    # ----------------------------
-    # Screening helpers
-    # ----------------------------
-    def screen_candidates_by_metadata(
-        self,
-        *,
-        skills_norm: Optional[List[str]] = None,
-        city_norm: str = "",
-        years_min: Optional[int] = None,
-        limit: int = 20,
-    ) -> List[Dict[str, Any]]:
-        filt: Dict[str, Any] = {"metadata.doc_type": "candidate_profile", "metadata.chunk_index": 0}
-        if city_norm:
-            filt["metadata.city_norm"] = city_norm
-        if years_min is not None:
-            filt["metadata.years_exp"] = {"$gte": years_min}
-
-        cur = self.rag_col.find(filt, {"metadata": 1}).limit(max(1, limit * 4))
-        out: List[Dict[str, Any]] = []
-        req = [norm_basic(x) for x in (skills_norm or []) if norm_basic(x)]
-        for d in cur:
-            md = d.get("metadata") or {}
-            skills = md.get("skills_known_norm") or []
-            primary = md.get("primary_skills_known_norm") or []
-            have = {norm_basic(x) for x in (skills + primary) if norm_basic(x)}
-            if req and not all(r in have for r in req):
-                continue
-            out.append(md)
-            if len(out) >= limit:
-                break
-        return out
-
+        return self.suggest_jobs(q, limit=limit, prefs=prefs)
 
     # ----------------------------
     # Prompt builders (friendly UX + chart-ready)
@@ -1248,7 +611,6 @@ class RAGService:
         job_ctx: List[str],
         cand_ctx: List[str],
         history: Optional[List[Dict[str, Any]]] = None,
-        current_state: Optional[Dict[str, Any]] = None,
     ) -> str:
         history = history or []
         history_tail = history[-6:]
@@ -1262,18 +624,14 @@ class RAGService:
         return f"""
 Bạn là trợ lý nghề nghiệp thân thiện, nói tiếng Việt tự nhiên, ngắn gọn nhưng thực tế.
 CHỈ dựa trên FACTS (job_meta, cand_meta, fit, context). Không được bịa.
-Nếu thông tin không có trong context, hãy trả lời: "Xin lỗi, thông tin này không có trong mô tả công việc, bạn nên hỏi trực tiếp HR khi phỏng vấn".
 
 Mục tiêu: trả lời theo nhu cầu user, giúp họ hiểu:
-- Điểm phù hợp (%), đạt/không đạt
+- Fit score (%), passed/failed
 - Match/missing (nhấn mạnh missing_critical)
 - Lộ trình cải thiện (ngắn, actionable)
 - Nếu user hỏi lương/remote/level -> hỏi thêm 1 câu nếu thiếu dữ liệu
 
 User question: {question}
-
-=== CURRENT STATE ===
-{json.dumps(current_state or {}, ensure_ascii=False)}
 
 === FIT (deterministic) ===
 {json.dumps(fit, ensure_ascii=False)}
@@ -1322,12 +680,9 @@ Output: JSON theo schema được cung cấp.
             if role and content:
                 hist_lines.append(f"{role}: {content}")
 
-        count_ranked = len(ranked or [])
-
         return f"""
 Bạn là trợ lý tuyển dụng (Recruiter assistant). Giọng điệu chuyên nghiệp, rõ ràng.
 CHỈ dựa trên FACTS (job_meta + ranked). Không được bịa. Nếu thiếu dữ liệu thì nói thiếu.
-Rang buoc: chi duoc dung ung vien trong mang ranked (khong duoc tao them). Neu ranked < 5, phai noi ro so luong thuc te (vd: "chi co {count_ranked} ung vien"). Tra loi ngan gon, trung thuc.
 
 User question: {question}
 

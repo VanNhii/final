@@ -137,10 +137,27 @@ const Candidates = () => {
     }
   };
 
+  const getCVUrl = (cvPath) => {
+    if (!cvPath) return null;
+    if (cvPath.startsWith('http')) return cvPath;
+    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${cvPath}`;
+  };
+
   const handleDownloadCV = async (candidateId, candidateName) => {
     try {
-      await recruiterService.downloadCandidateCV(candidateId);
-      toast.success(`Đã tải CV của ${candidateName}`);
+      const response = await recruiterService.downloadCandidateCV(candidateId);
+      if (response.success && response.data?.cv_url) {
+        const url = getCVUrl(response.data.cv_url);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `CV_${candidateName || 'Candidate'}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        toast.success(`Đã tải CV của ${candidateName}`);
+      } else {
+        throw new Error(response.message || 'Failed to get CV URL');
+      }
     } catch (error) {
       console.error('Download CV error:', error);
       toast.error('Lỗi khi tải CV');

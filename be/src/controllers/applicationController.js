@@ -1,4 +1,5 @@
 const Application = require('../models/Application');
+const Notification = require('../models/Notification');
 const { getPaginationParams, buildPaginationResponse, applyPagination } = require('../utils/pagination');
 
 // @desc    Get all applications
@@ -8,7 +9,7 @@ exports.getApplications = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     let query = {};
-    
+
     // Filter by user role
     if (req.user.role === 'candidate') {
       const candidate = await require('../models/Candidate').findOne({ user_id: req.user.id });
@@ -22,12 +23,12 @@ exports.getApplications = async (req, res, next) => {
         query.job_id = { $in: jobs.map(job => job._id) };
       }
     }
-    
+
     // Additional filters
     if (req.query.status) {
       query.status = req.query.status;
     }
-    
+
     const applicationsQuery = Application.find(query)
       .populate('job_id', 'title company_name')
       .populate({
@@ -35,13 +36,13 @@ exports.getApplications = async (req, res, next) => {
         select: 'bio experience_years',
         populate: {
           path: 'user_id',
-          select: 'first_name last_name email phone avatar_url'
+          select: '_id first_name last_name email phone avatar_url'
         }
       });
-    
+
     const applications = await applyPagination(applicationsQuery, page, limit, skip);
     const total = await Application.countDocuments(query);
-    
+
     res.status(200).json(buildPaginationResponse(applications, total, page, limit));
   } catch (error) {
     next(error);
@@ -60,7 +61,7 @@ exports.getApplication = async (req, res, next) => {
         select: 'skills experience education desired_position bio experience_years',
         populate: {
           path: 'user_id',
-          select: 'first_name last_name email phone avatar_url'
+          select: '_id first_name last_name email phone avatar_url'
         }
       })
       .populate({
@@ -71,18 +72,18 @@ exports.getApplication = async (req, res, next) => {
           select: 'company_name company_description',
           populate: {
             path: 'user_id',
-            select: 'first_name last_name email phone'
+            select: '_id first_name last_name email phone'
           }
         }
       });
-    
+
     if (!application) {
       return res.status(404).json({
         success: false,
         message: 'Application not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: application
@@ -99,31 +100,31 @@ exports.createApplication = async (req, res, next) => {
   try {
     // Get candidate
     const candidate = await require('../models/Candidate').findOne({ user_id: req.user.id });
-    
+
     if (!candidate) {
       return res.status(400).json({
         success: false,
         message: 'User is not a candidate'
       });
     }
-    
+
     // Check if already applied
     const existingApplication = await Application.findOne({
       job_id: req.body.job_id,
       candidate_id: candidate._id
     });
-    
+
     if (existingApplication) {
       return res.status(400).json({
         success: false,
         message: 'You have already applied for this job'
       });
     }
-    
+
     req.body.candidate_id = candidate._id;
-    
+
     const application = await Application.create(req.body);
-    
+
     res.status(201).json({
       success: true,
       data: application
@@ -139,27 +140,27 @@ exports.createApplication = async (req, res, next) => {
 exports.updateApplicationStatus = async (req, res, next) => {
   try {
     const application = await Application.findById(req.params.id);
-    
+
     if (!application) {
       return res.status(404).json({
         success: false,
         message: 'Application not found'
       });
     }
-    
+
     // Get new status from request body (try both status and application_status)
     const newStatus = req.body.status || req.body.application_status;
-    
+
     if (!newStatus) {
       return res.status(400).json({
         success: false,
         message: 'Status is required'
       });
     }
-    
+
     // Create status history record
     const oldStatus = application.application_status;
-    
+
     if (oldStatus !== newStatus) {
       await require('../models/ApplicationStatusHistory').create({
         application_id: application._id,
@@ -169,9 +170,9 @@ exports.updateApplicationStatus = async (req, res, next) => {
         change_reason: req.body.change_reason
       });
     }
-    
+
     const updatedApplication = await Application.findByIdAndUpdate(
-      req.params.id, 
+      req.params.id,
       {
         application_status: newStatus,
         reviewed_at: new Date(),
@@ -187,7 +188,7 @@ exports.updateApplicationStatus = async (req, res, next) => {
       select: 'skills experience education desired_position',
       populate: {
         path: 'user_id',
-        select: 'first_name last_name email phone avatar_url'
+        select: '_id first_name last_name email phone avatar_url'
       }
     }).populate({
       path: 'job_id',
@@ -197,11 +198,44 @@ exports.updateApplicationStatus = async (req, res, next) => {
         select: 'company_name company_description',
         populate: {
           path: 'user_id',
-          select: 'first_name last_name email phone'
+          select: '_id first_name last_name email phone'
         }
       }
     });
-    
+
+    // Send notification to candidate about status change
+    if (oldStatus !== newStatus && updatedApplication.candidate_id?.user_id) {
+      try {
+        const { notifyCandidateStatusChange } = require('../utils/notificationHelper');
+
+        // Debug: log the user_id structure
+        const userIdData = updatedApplication.candidate_id.user_id;
+        console.log('📧 Notification debug - candidate_id:', updatedApplication.candidate_id._id);
+        console.log('📧 Notification debug - user_id:', userIdData);
+        console.log('📧 Notification debug - user_id._id:', userIdData?._id);
+
+        // Extract the actual User _id
+        const candidateUserId = userIdData?._id || (typeof userIdData === 'string' ? userIdData : null);
+
+        if (!candidateUserId) {
+          console.error('❌ Could not extract user_id for notification. userIdData:', userIdData);
+        } else {
+          await notifyCandidateStatusChange({
+            candidateUserId,
+            jobTitle: updatedApplication.job_id?.title || 'Vị trí ứng tuyển',
+            companyName: updatedApplication.job_id?.recruiter_id?.company_name || 'Công ty',
+            oldStatus,
+            newStatus,
+            applicationId: updatedApplication._id,
+            rejectionReason: req.body.rejection_reason
+          });
+        }
+      } catch (notifyError) {
+        console.error('Failed to send notification:', notifyError);
+        // Don't fail the request if notification fails
+      }
+    }
+
     res.status(200).json({
       success: true,
       data: updatedApplication
@@ -217,17 +251,17 @@ exports.updateApplicationStatus = async (req, res, next) => {
 exports.deleteApplication = async (req, res, next) => {
   try {
     const application = await Application.findById(req.params.id);
-    
+
     if (!application) {
       return res.status(404).json({
         success: false,
         message: 'Application not found'
       });
     }
-    
+
     // Get candidate
     const candidate = await require('../models/Candidate').findOne({ user_id: req.user.id });
-    
+
     // Make sure user is application owner
     if (application.candidate_id.toString() !== candidate._id.toString() && req.user.role !== 'admin') {
       return res.status(401).json({
@@ -235,9 +269,9 @@ exports.deleteApplication = async (req, res, next) => {
         message: 'Not authorized to delete this application'
       });
     }
-    
+
     await application.deleteOne();
-    
+
     res.status(200).json({
       success: true,
       data: {}

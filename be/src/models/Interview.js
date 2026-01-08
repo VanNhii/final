@@ -44,7 +44,7 @@ const interviewSchema = new mongoose.Schema({
   meeting_link: {
     type: String,
     validate: {
-      validator: function(v) {
+      validator: function (v) {
         return !v || /^https?:\/\//.test(v);
       },
       message: 'Please provide a valid meeting link'
@@ -80,16 +80,37 @@ const interviewSchema = new mongoose.Schema({
   reminder_sent: {
     type: Boolean,
     default: false
+  },
+  candidate_confirmation: {
+    status: {
+      type: String,
+      enum: ['pending', 'confirmed', 'rejected'],
+      default: 'pending'
+    },
+    is_confirmed: {
+      type: Boolean,
+      default: false
+    },
+    message: {
+      type: String,
+      trim: true
+    },
+    confirmed_at: {
+      type: Date
+    },
+    rejected_at: {
+      type: Date
+    }
   }
 }, {
-  timestamps: { 
-    createdAt: 'created_at', 
-    updatedAt: 'updated_at' 
+  timestamps: {
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   }
 });
 
 // Populate related data
-interviewSchema.pre(/^find/, function(next) {
+interviewSchema.pre(/^find/, function (next) {
   this.populate({
     path: 'application_id',
     select: 'job_id candidate_id application_status',

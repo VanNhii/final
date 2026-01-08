@@ -20,7 +20,7 @@ exports.getRecruiters = async (req, res, next) => {
       })
       .populate('subscriptions')
       .sort('-created_at');
-    
+
     res.status(200).json({
       success: true,
       count: recruiters.length,
@@ -43,14 +43,14 @@ exports.getRecruiter = async (req, res, next) => {
         select: 'title status is_active job_type location salary_min salary_max application_deadline created_at',
         options: { sort: { created_at: -1 } }
       });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: recruiter
@@ -67,9 +67,9 @@ exports.createRecruiter = async (req, res, next) => {
   try {
     // Add user ID from authenticated user
     req.body.user_id = req.user.id;
-    
+
     const recruiter = await Recruiter.create(req.body);
-    
+
     res.status(201).json({
       success: true,
       data: recruiter
@@ -85,14 +85,14 @@ exports.createRecruiter = async (req, res, next) => {
 exports.updateRecruiter = async (req, res, next) => {
   try {
     let recruiter = await Recruiter.findById(req.params.id);
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter not found'
       });
     }
-    
+
     // Make sure user is recruiter owner
     if (recruiter.user_id.toString() !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
@@ -100,12 +100,12 @@ exports.updateRecruiter = async (req, res, next) => {
         message: 'Not authorized to update this recruiter'
       });
     }
-    
+
     recruiter = await Recruiter.findByIdAndUpdate(req.params.id, req.body, {
       new: true,
       runValidators: true
     });
-    
+
     res.status(200).json({
       success: true,
       data: recruiter
@@ -121,14 +121,14 @@ exports.updateRecruiter = async (req, res, next) => {
 exports.deleteRecruiter = async (req, res, next) => {
   try {
     const recruiter = await Recruiter.findById(req.params.id);
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter not found'
       });
     }
-    
+
     // Make sure user is recruiter owner
     if (recruiter.user_id.toString() !== req.user.id && req.user.role !== 'admin') {
       return res.status(401).json({
@@ -136,9 +136,9 @@ exports.deleteRecruiter = async (req, res, next) => {
         message: 'Not authorized to delete this recruiter'
       });
     }
-    
+
     await recruiter.deleteOne();
-    
+
     res.status(200).json({
       success: true,
       data: {}
@@ -161,14 +161,14 @@ exports.getRecruiterProfile = async (req, res, next) => {
         options: { sort: { created_at: -1 } }
       })
       .populate('subscriptions');
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: recruiter
@@ -184,19 +184,19 @@ exports.getRecruiterProfile = async (req, res, next) => {
 exports.updateRecruiterProfile = async (req, res, next) => {
   try {
     let recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     recruiter = await Recruiter.findByIdAndUpdate(recruiter._id, req.body, {
       new: true,
       runValidators: true
     }).populate('user_id', 'first_name last_name email phone avatar_url');
-    
+
     res.status(200).json({
       success: true,
       data: recruiter
@@ -214,27 +214,27 @@ exports.getRecruiterJobs = async (req, res, next) => {
     const { page, limit, skip } = getPaginationParams(req);
     const searchFilters = getSearchParams(req);
     const { status, is_active } = req.query;
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
-    const query = { 
+
+    const query = {
       recruiter_id: recruiter._id,
-      ...searchFilters 
+      ...searchFilters
     };
-    
+
     // Only add filters if they have values (not empty string)
     if (status && status.trim() !== '') query.status = status;
     if (is_active !== undefined && is_active !== '') {
       query.is_active = is_active === 'true';
     }
-    
+
     const jobsQuery = Job.find(query)
       .populate('categories', 'name')
       .populate({
@@ -245,14 +245,14 @@ exports.getRecruiterJobs = async (req, res, next) => {
           select: 'bio experience_years',
           populate: {
             path: 'user_id',
-            select: 'first_name last_name email phone avatar_url'
+            select: '_id first_name last_name email phone avatar_url'
           }
         }
       });
-    
+
     const jobs = await applyPagination(jobsQuery, page, limit, skip);
     const total = await Job.countDocuments(query);
-    
+
     res.status(200).json(buildPaginationResponse(jobs, total, page, limit));
   } catch (error) {
     next(error);
@@ -266,23 +266,23 @@ exports.getRecruiterApplications = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     const { status } = req.query;
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     // Get all jobs by this recruiter
     const jobs = await Job.find({ recruiter_id: recruiter._id }).select('_id');
     const jobIds = jobs.map(job => job._id);
-    
+
     const query = { job_id: { $in: jobIds } };
     if (status) query.application_status = status;
-    
+
     const applicationsQuery = Application.find(query)
       .populate('job_id', 'title location job_type')
       .populate({
@@ -290,14 +290,14 @@ exports.getRecruiterApplications = async (req, res, next) => {
         select: 'bio experience_years education experience skills_detailed salary_expectation available_from',
         populate: {
           path: 'user_id',
-          select: 'first_name last_name email phone avatar_url'
+          select: '_id first_name last_name email phone avatar_url'
         }
       })
       .sort('-created_at');
-    
+
     const applications = await applyPagination(applicationsQuery, page, limit, skip);
     const total = await Application.countDocuments(query);
-    
+
     res.status(200).json(buildPaginationResponse(applications, total, page, limit));
   } catch (error) {
     next(error);
@@ -312,23 +312,23 @@ exports.getRecruiterInterviews = async (req, res, next) => {
     const { page, limit, skip } = getPaginationParams(req);
     const dateFilters = getDateRangeFilter(req);
     const { status } = req.query;
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
-    const query = { 
+
+    const query = {
       recruiter_id: recruiter._id,
-      ...dateFilters 
+      ...dateFilters
     };
-    
+
     if (status) query.status = status;
-    
+
     const interviewsQuery = Interview.find(query)
       .populate({
         path: 'application_id',
@@ -342,14 +342,14 @@ exports.getRecruiterInterviews = async (req, res, next) => {
         select: 'bio experience_years',
         populate: {
           path: 'user_id',
-          select: 'first_name last_name email phone avatar_url full_name'
+          select: '_id first_name last_name email phone avatar_url full_name'
         }
       })
       .sort('interview_date');
-    
+
     const interviews = await applyPagination(interviewsQuery, page, limit, skip);
     const total = await Interview.countDocuments(query);
-    
+
     res.status(200).json(buildPaginationResponse(interviews, total, page, limit));
   } catch (error) {
     next(error);
@@ -360,17 +360,17 @@ exports.getRecruiterInterviews = async (req, res, next) => {
 // @route   GET /api/recruiters/dashboard
 // @access  Private/Recruiter
 exports.getRecruiterDashboard = async (req, res, next) => {
-  console.log('Fetching recruiter dashboard stats...',req.user);
+  console.log('Fetching recruiter dashboard stats...', req.user);
   try {
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     // Get basic stats
     const [
       totalJobs,
@@ -382,34 +382,34 @@ exports.getRecruiterDashboard = async (req, res, next) => {
     ] = await Promise.all([
       Job.countDocuments({ recruiter_id: recruiter._id }),
       Job.countDocuments({ recruiter_id: recruiter._id, is_active: true, status: 'approved' }),
-      Application.countDocuments({ 
+      Application.countDocuments({
         job_id: { $in: await Job.find({ recruiter_id: recruiter._id }).select('_id') }
       }),
-      Application.countDocuments({ 
+      Application.countDocuments({
         job_id: { $in: await Job.find({ recruiter_id: recruiter._id }).select('_id') },
         application_status: 'pending'
       }),
       Interview.countDocuments({ recruiter_id: recruiter._id }),
-      Interview.countDocuments({ 
+      Interview.countDocuments({
         recruiter_id: recruiter._id,
         interview_date: { $gte: new Date() },
         interview_status: 'scheduled'
       })
     ]);
-    
+
     // Get recent applications
     const jobIds = await Job.find({ recruiter_id: recruiter._id }).select('_id');
-    const recentApplications = await Application.find({ 
+    const recentApplications = await Application.find({
       job_id: { $in: jobIds }
     })
-    .populate('job_id', 'title')
-    .populate('candidate_id', 'bio experience_years')
-    .sort('-created_at')
-    .limit(5);
-    
+      .populate('job_id', 'title')
+      .populate('candidate_id', 'bio experience_years')
+      .sort('-created_at')
+      .limit(5);
+
     // Get subscription status
     const subscriptionStatus = await getSubscriptionStatus(recruiter._id);
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -437,16 +437,16 @@ exports.getRecruiterNotifications = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     const { is_read } = req.query;
-    
+
     const query = { user_id: req.user.id };
     if (is_read !== undefined) query.is_read = is_read === 'true';
-    
+
     const notificationsQuery = Notification.find(query)
       .sort('-created_at');
-    
+
     const notifications = await applyPagination(notificationsQuery, page, limit, skip);
     const total = await Notification.countDocuments(query);
-    
+
     // Mark as read if requested
     if (req.query.mark_as_read === 'true') {
       await Notification.updateMany(
@@ -454,7 +454,7 @@ exports.getRecruiterNotifications = async (req, res, next) => {
         { is_read: true, read_at: new Date() }
       );
     }
-    
+
     res.status(200).json(buildPaginationResponse(notifications, total, page, limit));
   } catch (error) {
     next(error);
@@ -467,21 +467,21 @@ exports.getRecruiterNotifications = async (req, res, next) => {
 exports.getRecruiterSubscriptions = async (req, res, next) => {
   try {
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
-    const subscriptions = await RecruiterSubscription.find({ 
-      recruiter_id: recruiter._id 
+
+    const subscriptions = await RecruiterSubscription.find({
+      recruiter_id: recruiter._id
     })
-    .populate('service_plan_id')
-    .sort('-created_at');
-    
-    console.log(subscriptions.length); 
+      .populate('service_plan_id')
+      .sort('-created_at');
+
+    console.log(subscriptions.length);
     res.status(200).json({
       success: true,
       count: subscriptions.length,
@@ -498,22 +498,22 @@ exports.getRecruiterSubscriptions = async (req, res, next) => {
 exports.getCurrentSubscription = async (req, res, next) => {
   try {
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
-    const currentSubscription = await RecruiterSubscription.findOne({ 
+
+    const currentSubscription = await RecruiterSubscription.findOne({
       recruiter_id: recruiter._id,
       subscription_status: 'active',
       end_date: { $gt: new Date() }
     })
-    .populate('service_plan_id')
-    .sort({ end_date: -1 });
-    
+      .populate('service_plan_id')
+      .sort({ end_date: -1 });
+
     let usage = null;
     if (currentSubscription && currentSubscription.service_plan_id) {
       const plan = currentSubscription.service_plan_id;
@@ -545,43 +545,43 @@ exports.getCurrentSubscription = async (req, res, next) => {
 exports.upgradeSubscription = async (req, res, next) => {
   try {
     const { planId, payment_method } = req.body;
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     // Get new service plan
     const newPlan = await ServicePlan.findById(planId);
-    
+
     if (!newPlan || !newPlan.is_active) {
       return res.status(404).json({
         success: false,
         message: 'Service plan not found or inactive'
       });
     }
-    
+
     // Get current subscription
     const currentSubscription = await RecruiterSubscription.findOne({
       recruiter_id: recruiter._id,
       subscription_status: 'active'
     });
-    
+
     if (currentSubscription) {
       // Cancel current subscription
       currentSubscription.subscription_status = 'cancelled';
       await currentSubscription.save();
     }
-    
+
     // Create new subscription
     const startDate = new Date();
     const endDate = new Date(startDate);
     endDate.setDate(endDate.getDate() + newPlan.duration_days);
-    
+
     const newSubscription = await RecruiterSubscription.create({
       recruiter_id: recruiter._id,
       service_plan_id: newPlan._id,
@@ -595,10 +595,10 @@ exports.upgradeSubscription = async (req, res, next) => {
         cv_downloads_used: 0
       }
     });
-    
+
     const populatedSubscription = await RecruiterSubscription.findById(newSubscription._id)
       .populate('service_plan_id');
-    
+
     res.status(200).json({
       success: true,
       message: 'Subscription upgraded successfully. Please complete payment to activate.',
@@ -615,31 +615,31 @@ exports.upgradeSubscription = async (req, res, next) => {
 exports.cancelSubscription = async (req, res, next) => {
   try {
     const { reason } = req.body;
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     const currentSubscription = await RecruiterSubscription.findOne({
       recruiter_id: recruiter._id,
       subscription_status: 'active'
     });
-    
+
     if (!currentSubscription) {
       return res.status(404).json({
         success: false,
         message: 'No active subscription found'
       });
     }
-    
+
     currentSubscription.subscription_status = 'cancelled';
     await currentSubscription.save();
-    
+
     res.status(200).json({
       success: true,
       message: 'Subscription cancelled successfully',
@@ -658,18 +658,24 @@ exports.getRecruiterAnalytics = async (req, res, next) => {
     const { period = '30' } = req.query; // days
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(period));
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
-    const jobIds = await Job.find({ recruiter_id: recruiter._id }).select('_id');
-    
+
+    // Get job IDs as array of ObjectIds
+    const jobs = await Job.find({ recruiter_id: recruiter._id }).select('_id');
+    const jobIds = jobs.map(job => job._id);
+
+    console.log('[ANALYTICS] Recruiter:', recruiter._id);
+    console.log('[ANALYTICS] Jobs found:', jobs.length);
+    console.log('[ANALYTICS] Job IDs:', jobIds);
+
     // Applications over time
     const applicationTrend = await Application.aggregate([
       {
@@ -688,7 +694,9 @@ exports.getRecruiterAnalytics = async (req, res, next) => {
         $sort: { "_id": 1 }
       }
     ]);
-    
+
+    console.log('[ANALYTICS] Application trend results:', applicationTrend.length);
+
     // Applications by status
     const applicationsByStatus = await Application.aggregate([
       {
@@ -701,7 +709,9 @@ exports.getRecruiterAnalytics = async (req, res, next) => {
         }
       }
     ]);
-    
+
+    console.log('[ANALYTICS] Applications by status:', applicationsByStatus);
+
     // Top performing jobs
     const topJobs = await Job.aggregate([
       {
@@ -729,7 +739,7 @@ exports.getRecruiterAnalytics = async (req, res, next) => {
         $limit: 5
       }
     ]);
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -750,24 +760,24 @@ exports.getRecruiterAnalytics = async (req, res, next) => {
 exports.updateCompanyCulture = async (req, res, next) => {
   try {
     const { mission, vision, company_culture, benefits } = req.body;
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     // Update company culture fields
     if (mission !== undefined) recruiter.mission = mission;
     if (vision !== undefined) recruiter.vision = vision;
     if (company_culture !== undefined) recruiter.company_culture = company_culture;
     if (benefits !== undefined) recruiter.benefits = benefits;
-    
+
     await recruiter.save();
-    
+
     res.status(200).json({
       success: true,
       data: {
@@ -788,30 +798,30 @@ exports.updateCompanyCulture = async (req, res, next) => {
 exports.addBenefit = async (req, res, next) => {
   try {
     const { benefit } = req.body;
-    
+
     if (!benefit || benefit.trim().length === 0) {
       return res.status(400).json({
         success: false,
         message: 'Benefit description is required'
       });
     }
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     if (!recruiter.benefits) {
       recruiter.benefits = [];
     }
-    
+
     recruiter.benefits.push(benefit.trim());
     await recruiter.save();
-    
+
     res.status(201).json({
       success: true,
       data: recruiter.benefits
@@ -828,26 +838,26 @@ exports.removeBenefit = async (req, res, next) => {
   try {
     const { index } = req.params;
     const benefitIndex = parseInt(index);
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     if (!recruiter.benefits || benefitIndex < 0 || benefitIndex >= recruiter.benefits.length) {
       return res.status(404).json({
         success: false,
         message: 'Benefit not found'
       });
     }
-    
+
     recruiter.benefits.splice(benefitIndex, 1);
     await recruiter.save();
-    
+
     res.status(200).json({
       success: true,
       data: recruiter.benefits
@@ -863,27 +873,27 @@ exports.removeBenefit = async (req, res, next) => {
 exports.updateSocialLinks = async (req, res, next) => {
   try {
     const { linkedin, facebook, twitter } = req.body;
-    
+
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
         message: 'Recruiter profile not found'
       });
     }
-    
+
     if (!recruiter.social_links) {
       recruiter.social_links = {};
     }
-    
+
     // Update social links
     if (linkedin !== undefined) recruiter.social_links.linkedin = linkedin;
     if (facebook !== undefined) recruiter.social_links.facebook = facebook;
     if (twitter !== undefined) recruiter.social_links.twitter = twitter;
-    
+
     await recruiter.save();
-    
+
     res.status(200).json({
       success: true,
       data: recruiter.social_links
@@ -899,7 +909,7 @@ exports.updateSocialLinks = async (req, res, next) => {
 exports.debugSubscription = async (req, res, next) => {
   try {
     const recruiter = await Recruiter.findOne({ user_id: req.user.id });
-    
+
     if (!recruiter) {
       return res.status(404).json({
         success: false,
@@ -911,8 +921,8 @@ exports.debugSubscription = async (req, res, next) => {
     const allSubscriptions = await RecruiterSubscription.find({
       recruiter_id: recruiter._id
     })
-    .populate('service_plan_id')
-    .sort({ created_at: -1 });
+      .populate('service_plan_id')
+      .sort({ created_at: -1 });
 
     // Get active subscription
     const activeSubscription = await RecruiterSubscription.findOne({
@@ -921,8 +931,8 @@ exports.debugSubscription = async (req, res, next) => {
       subscription_status: 'active',
       end_date: { $gt: new Date() }
     })
-    .populate('service_plan_id')
-    .sort({ end_date: -1 });
+      .populate('service_plan_id')
+      .sort({ end_date: -1 });
 
     const debugInfo = {
       recruiter: {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 import { toast } from 'react-toastify';
 import adminService from '../../services/adminService';
 
@@ -7,7 +8,7 @@ const ReportsManagement = () => {
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     search: '',
-    status: '',
+    status: 'pending',
     priority: '',
     type: '',
     page: 1,
@@ -62,7 +63,7 @@ const ReportsManagement = () => {
         admin_notes: notes
       });
       
-      if (response.data?.success) {
+      if (response && response.success) {
         // Update local state
         setReports(reports.map(report => 
           report._id === reportId || report.id === reportId
@@ -140,7 +141,7 @@ const ReportsManagement = () => {
         const reportedUserInfo = getReportedUserInfo(report);
         return [
           index + 1,
-          report.title || '',
+          report.reason || '',
           (report.type || report.report_type) === 'job_content' ? 'Nội dung việc làm' :
           (report.type || report.report_type) === 'spam' ? 'Spam' :
           (report.type || report.report_type) === 'harassment' ? 'Quấy rối' :
@@ -270,17 +271,56 @@ const ReportsManagement = () => {
   };
 
   const getReportedUserInfo = (report) => {
+    // Handle new structure with reported_entity_id
+    if (report.reported_entity_id && typeof report.reported_entity_id === 'object') {
+      const entity = report.reported_entity_id;
+      
+      if (report.reported_entity_type === 'Job') {
+        return {
+          id: entity._id,
+          type: 'job',
+          name: `Job: ${entity.title || 'N/A'}`,
+          email: 'N/A',
+          role: 'job'
+        };
+      }
+      
+      if (report.reported_entity_type === 'User' || !report.reported_entity_type) {
+        return {
+          id: entity._id,
+          type: 'user',
+          name: entity.full_name || (entity.first_name ? `${entity.first_name} ${entity.last_name}` : 'N/A'),
+          email: entity.email || 'N/A',
+          role: entity.role || 'user'
+        };
+      }
+      
+      return {
+        id: entity._id,
+        type: report.reported_entity_type.toLowerCase(),
+        name: `${report.reported_entity_type}: ${entity.name || entity.title || entity._id}`,
+        email: 'N/A',
+        role: report.reported_entity_type.toLowerCase()
+      };
+    }
+
+    // Fallback for old structure or unpopulated
     if (report.reported_user_id && typeof report.reported_user_id === 'object') {
       return {
+        id: report.reported_user_id._id,
+        type: 'user',
         name: report.reported_user_id.full_name || report.reported_user_id.name || 'N/A',
         email: report.reported_user_id.email || 'N/A',
         role: report.reported_user_id.role || 'user'
       };
     }
-    return report.reported_user || {
-      name: 'N/A',
+    
+    return {
+      id: report.reported_entity_id,
+      type: (report.reported_entity_type || 'user').toLowerCase(),
+      name: report.reported_entity_id || 'N/A',
       email: 'N/A',
-      role: 'user'
+      role: (report.reported_entity_type || 'user').toLowerCase()
     };
   };
 
@@ -604,7 +644,7 @@ const ReportsManagement = () => {
                       <td className="px-6 py-4">
                         <div className="max-w-xs">
                           <div className="text-sm font-medium text-gray-900 truncate">
-                            {report.title}
+                            {report.reason}
                           </div>
                           <div className="text-sm text-gray-500 mt-1 line-clamp-2">
                             {report.description}
@@ -629,7 +669,22 @@ const ReportsManagement = () => {
                         <div className="text-xs text-gray-400 capitalize">{reporterInfo.role}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{reportedUserInfo.name}</div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {reportedUserInfo.type === 'job' && reportedUserInfo.id ? (
+                            <Link 
+                              to={`/jobs/${reportedUserInfo.id}`} 
+                              target="_blank" 
+                              className="text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                            >
+                              {reportedUserInfo.name}
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </Link>
+                          ) : (
+                            reportedUserInfo.name
+                          )}
+                        </div>
                         <div className="text-sm text-gray-500">{reportedUserInfo.email}</div>
                         <div className="text-xs text-gray-400 capitalize">{reportedUserInfo.role}</div>
                       </td>
@@ -836,7 +891,19 @@ const ReportsManagement = () => {
                     </div>
                     <div>
                       <div className="text-gray-500">Bị báo cáo:</div>
-                      <div className="font-medium">{reportedUserInfo.name}</div>
+                      <div className="font-medium">
+                        {reportedUserInfo.type === 'job' && reportedUserInfo.id ? (
+                          <Link 
+                            to={`/jobs/${reportedUserInfo.id}`} 
+                            target="_blank" 
+                            className="text-blue-600 hover:underline"
+                          >
+                            {reportedUserInfo.name}
+                          </Link>
+                        ) : (
+                          reportedUserInfo.name
+                        )}
+                      </div>
                       <div className="text-xs text-gray-400">{reportedUserInfo.email}</div>
                     </div>
                   </div>
@@ -1020,192 +1087,231 @@ const ReportsManagement = () => {
 
       {/* Report Detail Modal */}
       {showReportModal && selectedReport && (
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-          <div className="relative top-10 mx-auto p-5 border w-11/12 md:w-3/4 lg:w-2/3 shadow-lg rounded-md bg-white max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Chi tiết báo cáo</h3>
-              <button
-                onClick={() => setShowReportModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {/* Report Header */}
-              <div className="border-b pb-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-900">{selectedReport.title}</h2>
-                    <p className="text-sm text-gray-600 mt-1">ID: {getReportId(selectedReport)}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    {getStatusBadge(selectedReport.status)}
-                    {getPriorityBadge(selectedReport.priority)}
-                  </div>
-                </div>
-              </div>
+        <div className="relative z-50" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity backdrop-blur-sm" aria-hidden="true" onClick={() => setShowReportModal(false)}></div>
 
-              {/* Report Type */}
-              <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-700">Loại vi phạm:</span>
-                {getTypeBadge(selectedReport.type || selectedReport.report_type)}
-              </div>
-
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Mô tả chi tiết</label>
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                    {selectedReport.description}
-                  </p>
-                </div>
-              </div>
-
-              {/* Reporter & Reported User Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Người báo cáo</h4>
-                  <div className="space-y-1">
-                    <p className="text-sm"><span className="text-gray-600">Tên:</span> {getReporterInfo(selectedReport).name}</p>
-                    <p className="text-sm"><span className="text-gray-600">Email:</span> {getReporterInfo(selectedReport).email}</p>
-                    <p className="text-sm"><span className="text-gray-600">Vai trò:</span> {getReporterInfo(selectedReport).role}</p>
-                  </div>
-                </div>
-                <div className="bg-red-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-red-900 mb-2">Đối tượng bị báo cáo</h4>
-                  <div className="space-y-1">
-                    <p className="text-sm"><span className="text-gray-600">Tên:</span> {getReportedUserInfo(selectedReport).name}</p>
-                    <p className="text-sm"><span className="text-gray-600">Email:</span> {getReportedUserInfo(selectedReport).email}</p>
-                    <p className="text-sm"><span className="text-gray-600">Vai trò:</span> {getReportedUserInfo(selectedReport).role}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Dates */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Ngày tạo</label>
-                  <p className="mt-1 text-sm text-gray-900">{formatDate(selectedReport.created_at)}</p>
-                </div>
-                {selectedReport.resolved_at && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Ngày giải quyết</label>
-                    <p className="mt-1 text-sm text-gray-900">{formatDate(selectedReport.resolved_at)}</p>
-                  </div>
-                )}
-                {selectedReport.updated_at && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700">Cập nhật lần cuối</label>
-                    <p className="mt-1 text-sm text-gray-900">{formatDate(selectedReport.updated_at)}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Admin Notes */}
-              {selectedReport.admin_notes && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Ghi chú của Admin</label>
-                  <div className="bg-yellow-50 p-4 rounded-lg">
-                    <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                      {selectedReport.admin_notes}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Evidence Files */}
-              {(selectedReport.evidence_files?.length > 0 || selectedReport.attachments?.length > 0) && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Tệp đính kèm</label>
-                  <div className="flex flex-wrap gap-2">
-                    {(selectedReport.evidence_files || selectedReport.attachments || []).map((file, index) => (
-                      <a
-                        key={index}
-                        href={typeof file === 'string' ? file : file.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-                      >
-                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        {typeof file === 'string' ? `Tệp ${index + 1}` : file.name}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex justify-end space-x-3 pt-4 border-t">
-                <button
-                  onClick={() => setShowReportModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                  Đóng
-                </button>
-                
-                {selectedReport.status === 'pending' && (
-                  <>
+          <div className="fixed inset-0 z-10 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-2xl">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-bold text-gray-900">Chi tiết báo cáo</h3>
                     <button
+                      onClick={() => setShowReportModal(false)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+            
+                  <div className="space-y-6">
+                    {/* Report Header */}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-100">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h2 className="text-lg font-bold text-gray-900">{selectedReport.reason || 'Chi tiết báo cáo'}</h2>
+                          <p className="text-xs text-gray-500 mt-1 font-mono">ID: {getReportId(selectedReport)}</p>
+                        </div>
+                        <div className="flex flex-col items-end space-y-2">
+                          {getStatusBadge(selectedReport.status)}
+                          {getPriorityBadge(selectedReport.priority)}
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4 flex items-center space-x-2 text-sm">
+                        <span className="font-medium text-gray-700">Loại vi phạm:</span>
+                        {getTypeBadge(selectedReport.type || selectedReport.report_type)}
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <div>
+                      <label className="block text-sm font-bold text-gray-700 mb-2">Mô tả chi tiết</label>
+                      <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+                        <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
+                          {selectedReport.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Reporter & Reported User Info */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="bg-blue-50 p-5 rounded-xl border border-blue-100">
+                        <h4 className="font-bold text-blue-900 mb-3 flex items-center">
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          Người báo cáo
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <p><span className="text-blue-700 font-medium w-16 inline-block">Tên:</span> {getReporterInfo(selectedReport).name}</p>
+                          <p><span className="text-blue-700 font-medium w-16 inline-block">Email:</span> {getReporterInfo(selectedReport).email}</p>
+                          <p><span className="text-blue-700 font-medium w-16 inline-block">Vai trò:</span> <span className="capitalize">{getReporterInfo(selectedReport).role}</span></p>
+                        </div>
+                      </div>
+                      <div className="bg-red-50 p-5 rounded-xl border border-red-100">
+                        <h4 className="font-bold text-red-900 mb-3 flex items-center">
+                          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          Đối tượng bị báo cáo
+                        </h4>
+                        <div className="space-y-2 text-sm">
+                          <p>
+                            <span className="text-red-700 font-medium w-16 inline-block">Tên:</span> 
+                            {getReportedUserInfo(selectedReport).type === 'job' && getReportedUserInfo(selectedReport).id ? (
+                              <Link 
+                                to={`/jobs/${getReportedUserInfo(selectedReport).id}`} 
+                                target="_blank" 
+                                className="text-blue-600 hover:underline"
+                              >
+                                {getReportedUserInfo(selectedReport).name}
+                              </Link>
+                            ) : (
+                              getReportedUserInfo(selectedReport).name
+                            )}
+                          </p>
+                          <p><span className="text-red-700 font-medium w-16 inline-block">Email:</span> {getReportedUserInfo(selectedReport).email}</p>
+                          <p><span className="text-red-700 font-medium w-16 inline-block">Vai trò:</span> <span className="capitalize">{getReportedUserInfo(selectedReport).role}</span></p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Dates */}
+                    <div className="flex flex-wrap gap-4 text-sm text-gray-500 border-t border-b py-3">
+                      <div>
+                        <span className="font-medium text-gray-700">Ngày tạo:</span> {formatDate(selectedReport.created_at)}
+                      </div>
+                      {selectedReport.updated_at && (
+                        <div>
+                          <span className="font-medium text-gray-700">Cập nhật:</span> {formatDate(selectedReport.updated_at)}
+                        </div>
+                      )}
+                      {selectedReport.resolved_at && (
+                        <div>
+                          <span className="font-medium text-gray-700">Giải quyết:</span> {formatDate(selectedReport.resolved_at)}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Evidence Files */}
+                    {(selectedReport.evidence_files?.length > 0 || selectedReport.attachments?.length > 0) && (
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Tệp đính kèm</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {(selectedReport.evidence_files || selectedReport.attachments || []).map((file, index) => (
+                            <a
+                              key={index}
+                              href={typeof file === 'string' ? file : (file.file_url || file.url)}
+                              download={typeof file === 'string' ? `file-${index}` : (file.file_name || file.name)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition-all group"
+                            >
+                              <div className="flex-shrink-0 w-10 h-10 bg-gray-200 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors">
+                                <svg className="w-6 h-6 text-gray-500 group-hover:text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <div className="ml-3 flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate group-hover:text-blue-700">
+                                  {typeof file === 'string' ? `Tệp đính kèm ${index + 1}` : (file.file_name || file.name)}
+                                </p>
+                                <p className="text-xs text-gray-500">Nhấn để tải xuống</p>
+                              </div>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Admin Notes */}
+                    {selectedReport.admin_notes && (
+                      <div>
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Ghi chú của Admin</label>
+                        <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-100 text-yellow-800 text-sm">
+                          {selectedReport.admin_notes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions Footer */}
+                <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t border-gray-200">
+                  {selectedReport.status === 'pending' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleStatusChange(getReportId(selectedReport), 'investigating');
+                          setShowReportModal(false);
+                        }}
+                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+                      >
+                        Bắt đầu điều tra
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleStatusChange(getReportId(selectedReport), 'dismissed');
+                          setShowReportModal(false);
+                        }}
+                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      >
+                        Bác bỏ
+                      </button>
+                    </>
+                  )}
+
+                  {selectedReport.status === 'investigating' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleStatusChange(getReportId(selectedReport), 'resolved');
+                          setShowReportModal(false);
+                        }}
+                        className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+                      >
+                        Đánh dấu giải quyết
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleStatusChange(getReportId(selectedReport), 'dismissed');
+                          setShowReportModal(false);
+                        }}
+                        className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                      >
+                        Bác bỏ
+                      </button>
+                    </>
+                  )}
+
+                  {(selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (
+                    <button
+                      type="button"
                       onClick={() => {
                         handleStatusChange(getReportId(selectedReport), 'investigating');
                         setShowReportModal(false);
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700"
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-orange-600 text-base font-medium text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:ml-3 sm:w-auto sm:text-sm"
                     >
-                      Bắt đầu điều tra
+                      Mở lại vụ việc
                     </button>
-                    <button
-                      onClick={() => {
-                        handleStatusChange(getReportId(selectedReport), 'dismissed');
-                        setShowReportModal(false);
-                      }}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-md text-sm font-medium hover:bg-gray-700"
-                    >
-                      Bác bỏ
-                    </button>
-                  </>
-                )}
-                
-                {selectedReport.status === 'investigating' && (
-                  <>
-                    <button
-                      onClick={() => {
-                        handleStatusChange(getReportId(selectedReport), 'resolved');
-                        setShowReportModal(false);
-                      }}
-                      className="px-4 py-2 bg-green-600 text-white rounded-md text-sm font-medium hover:bg-green-700"
-                    >
-                      Đánh dấu đã giải quyết
-                    </button>
-                    <button
-                      onClick={() => {
-                        handleStatusChange(getReportId(selectedReport), 'dismissed');
-                        setShowReportModal(false);
-                      }}
-                      className="px-4 py-2 bg-gray-600 text-white rounded-md text-sm font-medium hover:bg-gray-700"
-                    >
-                      Bác bỏ
-                    </button>
-                  </>
-                )}
-                
-                {(selectedReport.status === 'resolved' || selectedReport.status === 'dismissed') && (
+                  )}
+
                   <button
-                    onClick={() => {
-                      handleStatusChange(getReportId(selectedReport), 'investigating');
-                      setShowReportModal(false);
-                    }}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-md text-sm font-medium hover:bg-orange-700"
+                    type="button"
+                    onClick={() => setShowReportModal(false)}
+                    className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                   >
-                    Mở lại báo cáo
+                    Đóng
                   </button>
-                )}
+                </div>
               </div>
             </div>
           </div>

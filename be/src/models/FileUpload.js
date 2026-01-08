@@ -79,13 +79,22 @@ const fileUploadSchema = new mongoose.Schema({
   },
   storage_provider: {
     type: String,
-    enum: ['local', 'aws_s3', 'google_cloud', 'azure'],
+    enum: ['local', 'cloudinary', 'aws_s3', 'google_cloud', 'azure'],
     default: 'local'
+  },
+  file_url: {
+    type: String,
+    trim: true
+  },
+  cloudinary_public_id: {
+    type: String,
+    trim: true,
+    default: null
   }
 }, {
-  timestamps: { 
-    createdAt: 'created_at', 
-    updatedAt: 'updated_at' 
+  timestamps: {
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   }
 });
 

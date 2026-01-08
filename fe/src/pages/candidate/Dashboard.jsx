@@ -80,7 +80,7 @@ const CandidateDashboard = () => {
           Chào mừng {user?.full_name || 'bạn'} quay trở lại! Theo dõi hoạt động ứng tuyển của bạn.
         </p>
       </div>
-        
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-2xl font-bold text-primary-600">{stats.totalApplications}</div>
@@ -111,18 +111,18 @@ const CandidateDashboard = () => {
                 {applications.map((app) => (
                   <div key={app._id} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                     <div className="flex-1">
-                      <h3 className="font-medium text-gray-900">{app.job?.title || 'N/A'}</h3>
-                      <p className="text-gray-600 text-sm">{app.job?.company_name || 'N/A'}</p>
+                      <h3 className="font-medium text-gray-900">{app.job_id?.title || 'N/A'}</h3>
+                      <p className="text-gray-600 text-sm">{app.job_id?.recruiter_id?.company_name || 'N/A'}</p>
                       <p className="text-gray-500 text-xs">
                         Ứng tuyển {new Date(app.created_at).toLocaleDateString('vi-VN')}
                       </p>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm ${getStatusColor(app.status)}`}>
-                      {getStatusLabel(app.status)}
+                    <span className={`px-3 py-1 rounded-full text-sm ${getStatusColor(app.application_status)}`}>
+                      {getStatusLabel(app.application_status)}
                     </span>
                   </div>
                 ))}
-                <Link 
+                <Link
                   to="/candidate/applications"
                   className="block text-center text-primary-600 hover:text-primary-700 font-medium text-sm pt-2"
                 >

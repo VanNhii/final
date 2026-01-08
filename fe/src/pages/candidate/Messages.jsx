@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSelector } from 'react-redux';
+import { useSearchParams } from 'react-router';
 import candidateService from '../../services/candidateService';
 import socketService from '../../services/socketService';
 
 const CandidateMessages = () => {
   const { user, token } = useSelector((state) => state.auth);
+  const [searchParams] = useSearchParams();
   const [conversations, setConversations] = useState([]);
   const [messages, setMessages] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
@@ -18,6 +20,12 @@ const CandidateMessages = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const activeConversationRef = useRef(null);
+  const [deleteId, setDeleteId] = useState(null);
+
+  useEffect(() => {
+    activeConversationRef.current = activeConversation;
+  }, [activeConversation]);
 
   useEffect(() => {
     // Connect socket
@@ -43,6 +51,25 @@ const CandidateMessages = () => {
       socketService.off('user_status_change', handleUserStatusChange);
     };
   }, [token]);
+
+  // Handle userId from URL params - separate effect to run after conversations load
+  useEffect(() => {
+    const userId = searchParams.get('userId');
+    if (userId && !loading) { // Only run after loading is complete
+      const conversationId = generateConversationId(user._id, userId);
+
+      // Check if conversation exists
+      const exists = conversations.find(c => c.id === conversationId);
+
+      if (!exists) {
+        // Create placeholder conversation
+        createPlaceholderConversation(userId, conversationId);
+      }
+
+      // Set as active
+      setActiveConversation(conversationId);
+    }
+  }, [searchParams, loading]);
 
   useEffect(() => {
     scrollToBottom();
@@ -74,28 +101,83 @@ const CandidateMessages = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const createPlaceholderConversation = async (userId, conversationId) => {
+    // Create placeholder conversation
+    const newConversation = {
+      id: conversationId,
+      userId: userId,
+      userName: 'Đang tải...',
+      userAvatar: null,
+      userRole: 'recruiter', // Assume recruiter for candidate view
+      lastMessage: 'Bắt đầu cuộc trò chuyện mới',
+      lastMessageTime: new Date(),
+      unreadCount: 0,
+      status: 'offline'
+    };
+
+    setConversations(prev => [newConversation, ...prev]);
+    setMessages([]); // Empty messages for new conversation
+
+    // Fetch user info in background to update placeholder
+    try {
+      const response = await candidateService.getUserInfo(userId);
+      if (response.data) {
+        const userData = response.data.data || response.data; // Handle both wrapped and unwrapped
+        setConversations(prev => prev.map(conv =>
+          conv.id === conversationId
+            ? {
+              ...conv,
+              userName: userData.first_name && userData.last_name
+                ? `${userData.first_name} ${userData.last_name}`
+                : userData.email || 'Người dùng',
+              userAvatar: userData.avatar_url,
+              userRole: userData.role,
+              lastMessage: 'Bắt đầu cuộc trò chuyện'
+            }
+            : conv
+        ));
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+      // Update with minimal info on error
+      setConversations(prev => prev.map(conv =>
+        conv.id === conversationId
+          ? { ...conv, userName: 'Người dùng', lastMessage: '' }
+          : conv
+      ));
+    }
+  };
+
   const loadMessages = async () => {
     try {
       setLoading(true);
+      console.log('Loading all messages for conversations...');
       const response = await candidateService.getMessages();
-      
+
+      console.log('Messages response:', response);
+
       if (response.success && response.data) {
+        console.log('Total messages received:', response.data.length);
+
         // Group messages by conversation
         const conversationsMap = {};
-        
+
         response.data.forEach((msg) => {
           const isSender = msg.sender_id?._id === user._id;
           const otherUser = isSender ? msg.receiver_id : msg.sender_id;
-          
-          if (!otherUser) return;
-          
+
+          if (!otherUser) {
+            console.log('Message missing user info:', msg);
+            return;
+          }
+
           const conversationId = generateConversationId(user._id, otherUser._id);
-          
+
           if (!conversationsMap[conversationId]) {
-            const fullName = otherUser.first_name && otherUser.last_name 
+            const fullName = otherUser.first_name && otherUser.last_name
               ? `${otherUser.first_name} ${otherUser.last_name}`
               : otherUser.email || 'Unknown User';
-            
+
             conversationsMap[conversationId] = {
               id: conversationId,
               userId: otherUser._id,
@@ -109,12 +191,12 @@ const CandidateMessages = () => {
               status: onlineUsers[otherUser._id] ? 'online' : 'offline'
             };
           }
-          
+
           // Count unread messages
           if (!isSender && !msg.is_read) {
             conversationsMap[conversationId].unreadCount++;
           }
-          
+
           // Update last message if newer
           const msgTime = new Date(msg.sent_at || msg.created_at);
           const lastTime = new Date(conversationsMap[conversationId].lastMessageTime);
@@ -124,12 +206,29 @@ const CandidateMessages = () => {
           }
         });
 
-        setConversations(Object.values(conversationsMap).sort((a, b) => 
+        const conversationsList = Object.values(conversationsMap).sort((a, b) =>
           new Date(b.lastMessageTime) - new Date(a.lastMessageTime)
-        ));
+        );
+
+        console.log('[CANDIDATE] Conversations loaded:', conversationsList.length);
+
+        // Check if we need placeholder for URL param userId
+        const userId = searchParams.get('userId');
+        if (userId && user?._id) {
+          const placeholderConvId = generateConversationId(user._id, userId);
+          const existsInLoaded = conversationsList.find(c => c.id === placeholderConvId);
+          if (!existsInLoaded) {
+            console.log('[CANDIDATE] Will create placeholder for userId:', userId);
+          }
+        }
+
+        setConversations(conversationsList);
+      } else {
+        console.log('[CANDIDATE] No messages in response or unsuccessful');
       }
     } catch (error) {
       console.error('Error loading messages:', error);
+      console.error('Error details:', error.response || error.message);
     } finally {
       setLoading(false);
     }
@@ -138,39 +237,41 @@ const CandidateMessages = () => {
   const loadConversationMessages = async (conversationId) => {
     try {
       const conv = conversations.find(c => c.id === conversationId);
-      if (!conv) return;
+      if (!conv) {
+        console.log('Conversation not found:', conversationId);
+        return;
+      }
 
-      const response = await candidateService.getMessages();
-      
+      console.log('Loading messages for conversation:', conv.userId);
+
+      // Use the new optimized endpoint
+      const response = await candidateService.getConversationMessages(conv.userId, { limit: 100 });
+
+      console.log('Conversation messages response:', response);
+
       if (response.success && response.data) {
-        // Filter messages for this conversation
-        const conversationMessages = response.data
-          .filter(msg => {
-            const senderId = msg.sender_id?._id;
-            const receiverId = msg.receiver_id?._id;
-            return (
-              (senderId === user._id && receiverId === conv.userId) ||
-              (senderId === conv.userId && receiverId === user._id)
-            );
-          })
-          .sort((a, b) => new Date(a.sent_at || a.created_at) - new Date(b.sent_at || b.created_at));
+        // Backend returns descending order, reverse for chronological display
+        const conversationMessages = Array.isArray(response.data)
+          ? [...response.data].reverse()
+          : [];
 
+        console.log('Loaded messages:', conversationMessages.length);
         setMessages(conversationMessages);
 
         // Mark unread messages as read (bulk API call)
         const unreadMessages = conversationMessages.filter(
           msg => msg.receiver_id?._id === user._id && !msg.is_read
         );
-        
+
         if (unreadMessages.length > 0) {
           const messageIds = unreadMessages.map(msg => msg._id);
           await candidateService.markMessagesAsRead(messageIds);
-          
+
           // Update local state
-          setMessages(prev => prev.map(msg => 
+          setMessages(prev => prev.map(msg =>
             messageIds.includes(msg._id) ? { ...msg, is_read: true, read_at: new Date() } : msg
           ));
-          
+
           // Update conversation unread count
           setConversations(prev => prev.map(conv =>
             conv.id === conversationId ? { ...conv, unreadCount: 0 } : conv
@@ -180,9 +281,12 @@ const CandidateMessages = () => {
           setUnreadCount(prev => Math.max(0, prev - unreadMessages.length));
         }
 
+      } else {
+        console.log('No messages or unsuccessful response:', response);
       }
     } catch (error) {
       console.error('Error loading conversation messages:', error);
+      console.error('Error details:', error.response || error.message);
     }
   };
 
@@ -197,22 +301,22 @@ const CandidateMessages = () => {
 
   const handleNewMessage = (message) => {
     console.log('New message received:', message);
-    
+
     // Determine other user
     const messageSenderId = message.sender_id?._id || message.sender_id;
     const messageReceiverId = message.receiver_id?._id || message.receiver_id;
     const otherUserId = messageSenderId === user._id ? messageReceiverId : messageSenderId;
     const conversationId = generateConversationId(user._id, otherUserId);
-    
+
     if (!conversationId) {
       console.error('Cannot generate conversationId, invalid user IDs');
       return;
     }
-    
-    console.log('Active conversation:', activeConversation, 'Message conversation:', conversationId);
-    
+
+    console.log('Active conversation:', activeConversationRef.current, 'Message conversation:', conversationId);
+
     // Update messages if in active conversation
-    if (activeConversation === conversationId) {
+    if (activeConversationRef.current === conversationId) {
       console.log('Adding message to active conversation');
       // Check if message already exists to avoid duplicates
       setMessages(prev => {
@@ -225,7 +329,7 @@ const CandidateMessages = () => {
         console.log('Adding new message to list');
         return [...prev, message];
       });
-      
+
       // Mark as read if received and user is viewing
       if (messageReceiverId === user._id) {
         setTimeout(() => {
@@ -236,30 +340,30 @@ const CandidateMessages = () => {
 
     // Update conversation last message without full reload
     setConversations(prev => {
-      const updated = prev.map(conv => 
+      const updated = prev.map(conv =>
         conv.id === conversationId
-          ? { 
-              ...conv, 
-              lastMessage: message.content, 
-              lastMessageTime: message.sent_at || message.created_at || new Date(),
-              unreadCount: messageReceiverId === user._id && activeConversation !== conversationId 
-                ? (conv.unreadCount || 0) + 1 
-                : conv.unreadCount || 0
-            }
+          ? {
+            ...conv,
+            lastMessage: message.content,
+            lastMessageTime: message.sent_at || message.created_at || new Date(),
+            unreadCount: messageReceiverId === user._id && activeConversationRef.current !== conversationId
+              ? (conv.unreadCount || 0) + 1
+              : conv.unreadCount || 0
+          }
           : conv
       );
-      
+
       // If conversation doesn't exist, it might be a new one
       const exists = updated.some(c => c.id === conversationId);
       if (!exists && otherUserId) {
         // Will be created when user navigates to it
       }
-      
+
       return updated;
     });
 
     // Update total unread count if this is a received message
-    if (messageReceiverId === user._id && activeConversation !== conversationId) {
+    if (messageReceiverId === user._id && activeConversationRef.current !== conversationId) {
       setUnreadCount(prev => prev + 1);
     }
   };
@@ -288,7 +392,7 @@ const CandidateMessages = () => {
 
   const handleUserStatusChange = ({ userId, status }) => {
     console.log(`User ${userId} status changed to ${status}`);
-    
+
     if (status === 'online') {
       setOnlineUsers(prev => ({ ...prev, [userId]: true }));
       setConversations(prev =>
@@ -344,10 +448,18 @@ const CandidateMessages = () => {
             _id: conv.userId
           }
         };
-        setMessages(prev => [...prev, newMsg]);
-        
+
+        setMessages(prev => {
+          // Check if message already exists (e.g. received via socket before API response)
+          const msgId = newMsg._id || newMsg.id;
+          if (prev.some(m => (m._id || m.id) === msgId)) {
+            return prev;
+          }
+          return [...prev, newMsg];
+        });
+
         // Update conversation last message
-        setConversations(prev => prev.map(c => 
+        setConversations(prev => prev.map(c =>
           c.id === activeConversation
             ? { ...c, lastMessage: newMessage.trim(), lastMessageTime: new Date() }
             : c
@@ -355,7 +467,7 @@ const CandidateMessages = () => {
 
         setNewMessage('');
         socketService.stopTyping(conv.userId);
-        
+
         // Socket will receive the message via 'new_message' event from backend
         // No need to send via socket separately to avoid duplicates
       } else {
@@ -399,6 +511,31 @@ const CandidateMessages = () => {
     );
   };
 
+  const deleteConversation = (id, e) => {
+    e.stopPropagation();
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    try {
+      const conv = conversations.find(c => c.id === deleteId);
+      if (conv?.userId) {
+        await candidateService.deleteConversation(conv.userId);
+      }
+      setConversations(prev => prev.filter(c => c.id !== deleteId));
+      if (activeConversation === deleteId) {
+        setActiveConversation(null);
+        setMessages([]);
+      }
+    } catch (error) {
+      console.error('Error deleting conversation:', error);
+      alert('Không thể xóa cuộc trò chuyện. Vui lòng thử lại.');
+    } finally {
+      setDeleteId(null);
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
       case 'online': return 'bg-green-400';
@@ -413,7 +550,7 @@ const CandidateMessages = () => {
     const now = new Date();
     const diff = now - date;
     const hours = diff / (1000 * 60 * 60);
-    
+
     if (hours < 1) {
       return `${Math.floor(diff / (1000 * 60))} phút trước`;
     } else if (hours < 24) {
@@ -430,12 +567,12 @@ const CandidateMessages = () => {
 
   const filteredConversations = conversations.filter(conv => {
     const matchesSearch = conv.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         (conv.companyName && conv.companyName.toLowerCase().includes(searchQuery.toLowerCase()));
-    
+      (conv.companyName && conv.companyName.toLowerCase().includes(searchQuery.toLowerCase()));
+
     if (filter === 'unread') {
       return matchesSearch && conv.unreadCount > 0;
     }
-    
+
     return matchesSearch;
   });
 
@@ -496,21 +633,19 @@ const CandidateMessages = () => {
           <div className="flex space-x-2 mt-3">
             <button
               onClick={() => setFilter('all')}
-              className={`px-3 py-1 rounded-full text-sm ${
-                filter === 'all' 
-                  ? 'bg-blue-100 text-blue-800' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-3 py-1 rounded-full text-sm ${filter === 'all'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               Tất cả
             </button>
             <button
               onClick={() => setFilter('unread')}
-              className={`px-3 py-1 rounded-full text-sm ${
-                filter === 'unread' 
-                  ? 'bg-blue-100 text-blue-800' 
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
+              className={`px-3 py-1 rounded-full text-sm ${filter === 'unread'
+                ? 'bg-blue-100 text-blue-800'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
             >
               Chưa đọc
             </button>
@@ -526,9 +661,8 @@ const CandidateMessages = () => {
                 setActiveConversation(conversation.id);
                 markConversationAsRead(conversation.id);
               }}
-              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
-                activeConversation === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-              }`}
+              className={`p-4 border-b border-gray-100 cursor-pointer hover:bg-gray-50 relative group ${activeConversation === conversation.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                }`}
             >
               <div className="flex items-start space-x-3">
                 <div className="relative">
@@ -551,7 +685,7 @@ const CandidateMessages = () => {
                     <p className="text-xs text-blue-600 mb-1">{conversation.companyName}</p>
                   )}
                   <p className="text-sm text-gray-600 truncate">{conversation.lastMessage}</p>
-                  
+
                   <div className="flex justify-between items-center mt-2">
                     <div className="flex items-center space-x-1">
                       <span className="text-xs text-gray-500">Nhà tuyển dụng</span>
@@ -564,6 +698,17 @@ const CandidateMessages = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Delete button - appears on hover */}
+              <button
+                onClick={(e) => deleteConversation(conversation.id, e)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                title="Xóa cuộc trò chuyện"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
             </div>
           ))}
 
@@ -618,15 +763,13 @@ const CandidateMessages = () => {
                     key={message._id}
                     className={`flex ${isSentByMe ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                      isSentByMe
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-200 text-gray-900'
-                    }`}>
-                      <p className="text-sm">{message.content}</p>
-                      <div className={`flex items-center justify-between mt-1 ${
-                        isSentByMe ? 'text-blue-100' : 'text-gray-500'
+                    <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${isSentByMe
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-900'
                       }`}>
+                      <p className="text-sm">{message.content}</p>
+                      <div className={`flex items-center justify-between mt-1 ${isSentByMe ? 'text-blue-100' : 'text-gray-500'
+                        }`}>
                         <span className="text-xs">{formatMessageTime(message.created_at)}</span>
                         {isSentByMe && (
                           <div className="ml-2">
@@ -709,6 +852,56 @@ const CandidateMessages = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteId && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 transform transition-all animate-fade-in">
+            <div className="text-center">
+              <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Xóa cuộc trò chuyện?</h3>
+              <p className="text-gray-600 mb-6">
+                Bạn có chắc chắn muốn xóa cuộc trò chuyện này? Tất cả tin nhắn sẽ bị xóa vĩnh viễn và không thể khôi phục.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteId(null)}
+                  className="flex-1 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 px-6 py-3 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition-colors"
+                >
+                  Xóa
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add custom styles for animations */}
+      <style>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.2s ease-out;
+        }
+      `}</style>
     </div>
   );
 };

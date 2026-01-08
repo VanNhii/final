@@ -67,14 +67,14 @@ class ApiClient {
   post(endpoint, data) {
     return this.request(endpoint, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     });
   }
 
   put(endpoint, data) {
     return this.request(endpoint, {
       method: 'PUT',
-      body: JSON.stringify(data),
+      body: data instanceof FormData ? data : JSON.stringify(data),
     });
   }
 

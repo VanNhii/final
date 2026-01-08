@@ -8,7 +8,9 @@ const {
   replyToMessage,
   deleteMessage,
   markMessagesAsRead,
-  getUnreadCount
+  getUnreadCount,
+  getConversationMessages,
+  deleteConversation
 } = require('../controllers/messageController');
 
 const { protect } = require('../middleware/auth');
@@ -33,5 +35,9 @@ router
   .delete(deleteMessage);
 
 router.post('/:id/reply', replyToMessage);
+
+// Conversation-specific routes
+router.get('/conversation/:userId', getConversationMessages);
+router.delete('/conversations/:userId', deleteConversation);
 
 module.exports = router;

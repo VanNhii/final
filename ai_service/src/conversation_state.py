@@ -45,6 +45,15 @@ ROADMAP_PAT = re.compile(r"\b(lộ\s*trình|lo\s*trinh|roadmap|plan|kế\s*hoạ
 INTERVIEW_PAT = re.compile(r"\b(phỏng\s*vấn|phong\s*van|interview|mock\s*interview|simulate)\b", re.I)
 COMPETE_PAT = re.compile(r"\b(canh tranh|doi thu|top|phan tram|%|bao nhieu|xep hang|hang may)\b", re.I)
 
+# Cover Letter & Outreach
+COVER_LETTER_PAT = re.compile(r"\b(cover\s*letter|thư\s*xin\s*việc|thu\s*xin\s*viec|đơn\s*xin\s*việc|don\s*xin\s*viec|email\s*ứng\s*tuyển|thư\s*giới\s*thiệu|thu\s*gioi\s*thieu)\b", re.I)
+CV_CRITIQUE_PAT = re.compile(r"\b(cv\s*critique|review\s*cv|đánh\s*giá\s*cv|danh\s*gia\s*cv|xem\s*cv|soát\s*cv|soat\s*cv|sửa\s*cv|sua\s*cv)\b", re.I)
+OUTREACH_PAT = re.compile(r"\b(soạn\s*email|viết\s*mail|gửi\s*mail|thư\s*mời|thu\s*moi|từ\s*chối|tu\s*choi|outreach)\b", re.I)
+
+# Recruiter Utils
+JD_GEN_PAT = re.compile(r"\b(soạn\s*jd|viết\s*jd|tạo\s*jd|mô\s*tả\s*công\s*việc|mo\s*ta\s*cong\s*viec|job\s*description|viết\s*mô\s*tả)\b", re.I)
+SCHEDULE_PAT = re.compile(r"\b(đặt\s*lịch|dat\s*lich|xếp\s*lịch|xep\s*lich|lên\s*lịch|len\s*lich|schedule|book|meeting|gặp|gap|hẹn|hen)\b", re.I)
+
 # City extraction: "ở Đà Nẵng", "tại Buôn Ma Thuột", "ở Hội An"
 CITY_TRIGGER_PAT = re.compile(r"\b(ở|o|tại|tai|in)\s+([a-zA-ZÀ-ỹ0-9\-\s]{2,40})", re.I)
 
@@ -312,7 +321,7 @@ def extract_prefs_llm(llm: LLMService, text: str, old_prefs: Dict[str, Any]) -> 
     """
     LLM fallback for preferences, but safe + optional.
     """
-    if str(os.getenv("LLM_ENABLED", "true")).lower() != "true":
+    if str(os.getenv("LLM_ENABLED", "true")).lower() not in ("true", "1", "yes", "on"):
         return {}
 
     schema = """{
@@ -415,6 +424,9 @@ RECR_INTENTS = [
     "SCREEN_CANDIDATES",
     "COMPARE_CANDIDATES",
     "INTERVIEW_PREP",
+    "GENERATE_JD",
+    "OUTREACH",
+    "SCHEDULE_INTERVIEW",
     "RESET",
     "UNKNOWN",
 ]
@@ -482,6 +494,10 @@ def route_candidate_intent(question: str, payload: dict, llm: Optional[LLMServic
 
     selected_id = payload.get("selected_job_id")
     if selected_id:
+        if COVER_LETTER_PAT.search(t):
+            return {"intent": "COVER_LETTER", "confidence": 0.99}
+        if CV_CRITIQUE_PAT.search(t):
+            return {"intent": "CV_CRITIQUE", "confidence": 0.99}
         if COMPETE_PAT.search(t) and re.search(r"\b(ung vien|ung tuyen|ho so|nop)\b", t):
             return {"intent": "COMPETITION", "confidence": 0.9}
         if payload.get("last_action") == "ROADMAP" and is_confirm(q):
@@ -550,7 +566,7 @@ def route_candidate_intent(question: str, payload: dict, llm: Optional[LLMServic
         return {"intent": "INTERVIEW", "confidence": 0.85}
 
     # LLM fallback
-    if llm and str(os.getenv("LLM_ENABLED", "true")).lower() == "true":
+    if llm and str(os.getenv("LLM_ENABLED", "true")).lower() in ("true", "1", "yes", "on"):
         schema = f"""{{
           "intent": "{CAND_INTENTS}",
           "confidence": 0.0,
@@ -601,6 +617,13 @@ def route_recruiter_intent(question: str, payload: dict, llm: Optional[LLMServic
             return {"intent": "SELECT_JOB", "auto_pick": True, "confidence": 0.9}
         return {"intent": "ACK", "confidence": 0.8}
 
+    if JD_GEN_PAT.search(t):
+        return {"intent": "GENERATE_JD", "confidence": 0.95}
+    if OUTREACH_PAT.search(t):
+        return {"intent": "OUTREACH", "confidence": 0.95}
+    if SCHEDULE_PAT.search(t):
+        return {"intent": "SCHEDULE_INTERVIEW", "confidence": 0.95}
+
     # if recruiter has job_id + candidate_ids in payload, default to ranking/compare
     job_id = payload.get("job_id")
     cand_ids = payload.get("candidate_ids") or []
@@ -617,7 +640,7 @@ def route_recruiter_intent(question: str, payload: dict, llm: Optional[LLMServic
     # if missing payload, still infer
     if re.search(r"\b(rank|xếp|xep|top)\b", t):
         return {"intent": "RANK_CANDIDATES", "confidence": 0.7}
-    if llm and str(os.getenv("LLM_ENABLED", "true")).lower() == "true":
+    if llm and str(os.getenv("LLM_ENABLED", "true")).lower() in ("true", "1", "yes", "on"):
         schema = f"""{{
           "intent": "{RECR_INTENTS}",
           "confidence": 0.0,

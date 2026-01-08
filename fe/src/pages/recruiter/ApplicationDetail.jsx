@@ -19,7 +19,7 @@ const ApplicationDetail = () => {
     try {
       setLoading(true);
       const response = await recruiterService.getApplicationById(id);
-      
+
       if (response.success) {
         setApplication(response.data);
       } else {
@@ -37,7 +37,7 @@ const ApplicationDetail = () => {
     try {
       setUpdating(true);
       const response = await recruiterService.updateApplicationStatus(id, newStatus);
-      
+
       if (response.success) {
         toast.success('Cập nhật trạng thái thành công');
         setApplication(prev => ({ ...prev, application_status: newStatus }));
@@ -54,14 +54,32 @@ const ApplicationDetail = () => {
 
   const handleSendMessage = async () => {
     try {
-      const recipientId = application.candidate_id?.user_id?._id;
-      if (!recipientId) {
-        toast.error('Không tìm thấy thông tin ứng viên');
+      // Debug: log the full candidate_id structure
+      console.log('Candidate data:', application.candidate_id);
+      console.log('Candidate user_id:', application.candidate_id?.user_id);
+
+      // Get candidate user ID - user_id should be populated with _id
+      let candidateUserId = null;
+
+      // Check if user_id is populated as an object with _id
+      if (application.candidate_id?.user_id?._id) {
+        candidateUserId = application.candidate_id.user_id._id;
+        console.log('Found user_id._id:', candidateUserId);
+      }
+      // Check if user_id is a string (just the ID)
+      else if (application.candidate_id?.user_id && typeof application.candidate_id.user_id === 'string') {
+        candidateUserId = application.candidate_id.user_id;
+        console.log('Found user_id string:', candidateUserId);
+      }
+
+      if (!candidateUserId) {
+        toast.error('Không tìm thấy thông tin liên hệ ứng viên. Vui lòng tải lại trang.');
+        console.error('Could not extract candidate user ID. Full candidate data:', application.candidate_id);
         return;
       }
 
-      // Navigate to messages page - the Messages component will handle creating conversation
-      navigate(`/recruiter/messages?userId=${recipientId}`);
+      console.log('Opening chat with candidate user:', candidateUserId);
+      navigate(`/recruiter/messages?userId=${candidateUserId}`);
     } catch (error) {
       console.error('Send message error:', error);
       toast.error('Không thể mở tin nhắn');
@@ -117,7 +135,35 @@ const ApplicationDetail = () => {
       return cvPath;
     }
     // Otherwise, prepend backend URL
-    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${cvPath}`;
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    // Make sure we don't double up slashes
+    const cleanPath = cvPath.startsWith('/') ? cvPath : `/${cvPath}`;
+    return `${baseUrl}${cleanPath}`;
+  };
+
+  const handleViewCV = async (cvPath) => {
+    if (!cvPath) {
+      toast.error('Không tìm thấy CV');
+      return;
+    }
+
+    const cvUrl = getCVUrl(cvPath);
+
+    try {
+      // Try to check if file exists with a HEAD request
+      const response = await fetch(cvUrl, { method: 'HEAD' });
+
+      if (response.ok) {
+        // File exists, open in new tab
+        window.open(cvUrl, '_blank');
+      } else {
+        toast.error('File CV không tồn tại hoặc đã bị xóa. Vui lòng yêu cầu ứng viên tải lại CV.');
+      }
+    } catch (error) {
+      // If HEAD request fails, try opening anyway (might be CORS issue)
+      console.warn('Could not check CV file, opening anyway:', error);
+      window.open(cvUrl, '_blank');
+    }
   };
 
   if (loading) {
@@ -179,17 +225,15 @@ const ApplicationDetail = () => {
             Nhắn tin
           </button>
           {application.cv_url && (
-            <a
-              href={getCVUrl(application.cv_url)}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => handleViewCV(application.cv_url)}
               className="inline-flex items-center px-4 py-2 border border-blue-300 text-sm font-medium rounded-lg text-blue-700 bg-white hover:bg-blue-50"
             >
               <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              Tải CV
-            </a>
+              Xem CV
+            </button>
           )}
         </div>
       </div>
@@ -291,11 +335,10 @@ const ApplicationDetail = () => {
                   key={status}
                   onClick={() => handleStatusChange(status)}
                   disabled={updating || application.application_status === status}
-                  className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                    application.application_status === status
-                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                      : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                  }`}
+                  className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${application.application_status === status
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                    }`}
                 >
                   {getStatusText(status)}
                 </button>

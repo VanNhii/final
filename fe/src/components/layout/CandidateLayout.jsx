@@ -64,53 +64,53 @@ const Icon = ({ paths, className = "w-6 h-6" }) => (
 
 // Navigation item component
 const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
-  const baseClasses = "group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-all duration-200";
+  const baseClasses = "group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 mb-1";
   const activeClasses = isActive 
-    ? "bg-gradient-to-r from-blue-100 to-blue-50 text-blue-900 border-l-4 border-blue-600 shadow-md" 
-    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm";
+    ? "bg-blue-50 text-blue-700 shadow-sm" 
+    : "text-gray-600 hover:bg-gray-50 hover:text-blue-700 hover:translate-x-1";
   
   return (
     <Link
       to={item.href}
-      className={`${baseClasses} ${activeClasses} ${isCollapsed ? 'justify-center px-3' : ''}`}
+      className={`${baseClasses} ${activeClasses} ${isCollapsed ? 'justify-center px-2' : ''}`}
       title={isCollapsed ? item.name : ''}
       onClick={onClick}
     >
-      <Icon 
-        paths={item.icon} 
-        className={`h-6 w-6 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-700 stroke-[2.5]' : 'text-gray-500'}`} 
-      />
-      {!isCollapsed && <span className="truncate font-semibold">{item.name}</span>}
+      <div className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+        <Icon 
+          paths={item.icon} 
+          className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-700' : 'text-gray-400 group-hover:text-blue-600'}`} 
+        />
+      </div>
+      {!isCollapsed && <span className="truncate font-medium">{item.name}</span>}
     </Link>
   );
 };
 
 // Sidebar component
-const Sidebar = ({ navigation, location, isCollapsed, isMobileOpen, onMobileClose }) => {  
+const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {  
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200 shadow-sm">
-      <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
+    <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm transition-all duration-300">
+      <div className="flex-1 flex flex-col pt-6 pb-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
         {/* Logo/Brand */}
-        <div className={`flex items-center flex-shrink-0 px-4 mb-6 ${isCollapsed ? 'justify-center' : ''}`}>
-          {isCollapsed ? (
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg">
+        <Link to="/" className={`flex items-center flex-shrink-0 px-5 mb-8 ${isCollapsed ? 'justify-center' : ''} group`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:shadow-blue-500/50 transition-all duration-300 group-hover:scale-105">
               <span className="text-white font-bold text-lg">C</span>
             </div>
-          ) : (
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center shadow-lg mr-3">
-                <span className="text-white font-bold text-lg">C</span>
+            {!isCollapsed && (
+              <div className="flex flex-col">
+                <h1 className="text-xl font-bold text-gray-900 leading-none group-hover:text-blue-700 transition-colors">
+                  JobPortal
+                </h1>
+                <span className="text-xs text-gray-500 mt-1">Candidate</span>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">JobPortal</h1>
-                <p className="text-xs text-gray-500 font-medium">Ứng viên</p>
-              </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </Link>
         
         {/* Navigation */}
-        <nav className="flex-1 px-2 space-y-1">
+        <nav className="flex-1 px-3 space-y-1">
           {navigation.map((item) => {
             const isActive = location.pathname === item.href || 
                            (item.href !== '/candidate/dashboard' && location.pathname.startsWith(item.href));
@@ -165,7 +165,7 @@ const Header = ({ onToggleSidebar, onMobileMenuToggle, isCollapsed, user, onLogo
       if (response.success && response.data) {
         setUnreadCount(response.data.count || 0);
       }
-    } catch (error) {
+    } catch {
       // Silently fail if notification API is not available
       // console.error('Error fetching unread count:', error);
     }
@@ -480,41 +480,16 @@ const Header = ({ onToggleSidebar, onMobileMenuToggle, isCollapsed, user, onLogo
 const CandidateLayout = () => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [userProfile, setUserProfile] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
-
-  // Fetch user profile on mount
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const response = await candidateService.getCandidateProfile();
-        if (response.success && response.data) {
-          setUserProfile(response.data);
-        }
-      } catch (error) {
-        console.error('Error fetching user profile:', error);
-      }
-    };
-
-    if (user) {
-      fetchUserProfile();
-    }
-  }, [user]);
 
   // Handle avatar update
   const handleAvatarUpdate = async (avatarUrl) => {
     try {
       // Update Redux store immediately
       dispatch(updateUserData({ avatar_url: avatarUrl }));
-      
-      // Also fetch fresh profile data
-      const response = await candidateService.getCandidateProfile();
-      if (response.success && response.data) {
-        setUserProfile(response.data);
-      }
     } catch (error) {
       console.error('Error refreshing profile:', error);
     }
@@ -544,7 +519,7 @@ const CandidateLayout = () => {
       await dispatch(logout()).unwrap();
       toast.success('Đăng xuất thành công');
       navigate('/');
-    } catch (error) {
+    } catch {
       toast.error('Có lỗi xảy ra khi đăng xuất');
     }
   };

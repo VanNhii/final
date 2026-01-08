@@ -46,9 +46,9 @@ class RecruiterService {
   }
 
   async bulkUpdateApplications(applicationIds, status) {
-    return apiClient.put('/applications/bulk-update', { 
-      applicationIds, 
-      status 
+    return apiClient.put('/applications/bulk-update', {
+      applicationIds,
+      status
     });
   }
 
@@ -126,6 +126,15 @@ class RecruiterService {
 
   async getUnreadCount() {
     return apiClient.get('/messages/unread-count');
+  }
+
+  // New conversation endpoints
+  async getConversationMessages(userId, params = {}) {
+    return apiClient.get(`/messages/conversation/${userId}`, params);
+  }
+
+  async deleteConversation(userId) {
+    return apiClient.delete(`/messages/conversations/${userId}`);
   }
 
   // Conversation-based Messages (if backend is upgraded)
@@ -229,7 +238,7 @@ class RecruiterService {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
-    
+
     return apiClient.uploadFile('/upload', formData);
   }
 
@@ -274,9 +283,9 @@ class RecruiterService {
   }
 
   async checkScheduleConflict(datetime, duration) {
-    return apiClient.post('/interviews/check-conflict', { 
-      datetime, 
-      duration 
+    return apiClient.post('/interviews/check-conflict', {
+      datetime,
+      duration
     });
   }
 

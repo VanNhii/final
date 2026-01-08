@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import os
-import re
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -57,45 +56,6 @@ if not os.path.exists(SKILLS_PATH):
 
 skill_norm = SkillNormalizer(config_path=SKILLS_PATH)
 
-NO_SPLIT_MARKERS = ("ci/cd", "qa/qc", "ui/ux", "r&d")
-SPLIT_RE = re.compile(r"\s*(?:/|,|\||&)\s*")
-
-
-def split_skill_terms(value: Any) -> List[str]:
-    text = clean_text(value)
-    if not text:
-        return []
-    lower = text.lower()
-    if any(marker in lower for marker in NO_SPLIT_MARKERS):
-        return [text]
-    if "backup" in lower and "restore" in lower:
-        return [text]
-    parts = [p.strip() for p in SPLIT_RE.split(text) if p.strip()]
-    return parts or [text]
-
-
-def append_skill_terms(target: List[str], value: Any) -> None:
-    if value is None:
-        return
-    if isinstance(value, list):
-        for item in value:
-            if isinstance(item, dict):
-                name = (
-                    item.get("skill_name")
-                    or item.get("skillName")
-                    or item.get("name")
-                    or item.get("skill")
-                    or ""
-                )
-                for part in split_skill_terms(name):
-                    target.append(part)
-            else:
-                for part in split_skill_terms(item):
-                    target.append(part)
-        return
-    for part in split_skill_terms(value):
-        target.append(part)
-
 
 def _get_updated_at(c: dict) -> Any:
     return c.get("updated_at") or c.get("updatedAt") or c.get("created_at") or c.get("createdAt")
@@ -121,14 +81,10 @@ def extract_candidate_raw_skills(c: dict) -> Dict[str, List[str]]:
     for s in skills_detailed:
         if not isinstance(s, dict):
             continue
+        # Try multiple field name variations
         nm = (s.get("skill_name") or s.get("skillName") or s.get("name") or "").strip()
         if nm:
-            append_skill_terms(profile_skills, nm)
-
-    # Legacy/simple skill arrays
-    append_skill_terms(profile_skills, c.get("skills") or [])
-    append_skill_terms(profile_skills, c.get("skills_display") or c.get("skillsDisplay") or [])
-    append_skill_terms(profile_skills, c.get("skills_summary") or c.get("skillsSummary") or "")
+            profile_skills.append(str(nm))
 
     # Handle experience technologies
     experience = c.get("experience") or []
@@ -136,15 +92,10 @@ def extract_candidate_raw_skills(c: dict) -> Dict[str, List[str]]:
         if not isinstance(e, dict):
             continue
         techs = (e.get("technologies") or [])
-        append_skill_terms(exp_skills, techs)
-
-    projects = c.get("projects") or []
-    if isinstance(projects, list):
-        for p in projects:
-            if not isinstance(p, dict):
-                continue
-            append_skill_terms(profile_skills, p.get("technologies") or p.get("tech_stack") or [])
-            append_skill_terms(profile_skills, p.get("skills") or p.get("tags") or [])
+        if isinstance(techs, list):
+            for t in techs:
+                if t:
+                    exp_skills.append(str(t).strip())
 
     return {"profile": profile_skills, "experience": exp_skills}
 
@@ -183,19 +134,6 @@ def extract_candidate_facts(c: dict) -> Dict[str, Any]:
         techs = e.get("technologies") or []
         if isinstance(techs, list):
             blob_parts.extend([clean_text(t) for t in techs if clean_text(t)])
-
-    projects = c.get("projects") or []
-    if isinstance(projects, list):
-        for p in projects:
-            if not isinstance(p, dict):
-                continue
-            blob_parts.append(clean_text(p.get("name") or p.get("title") or ""))
-            blob_parts.append(clean_text(p.get("role") or ""))
-            blob_parts.append(clean_text(p.get("description") or ""))
-            blob_parts.append(clean_text(p.get("summary") or ""))
-            techs = p.get("technologies") or p.get("tech_stack") or []
-            if isinstance(techs, list):
-                blob_parts.extend([clean_text(t) for t in techs if clean_text(t)])
 
     detected_ids = skill_norm.detect_in_text("\n".join([x for x in blob_parts if x]))
     # Merge detected canonical ids into raw skill list (keep dedup in classify)

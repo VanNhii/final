@@ -85,57 +85,58 @@ const Icon = ({ paths, className = "w-6 h-6" }) => (
 
 // Navigation item component
 const NavigationItem = ({ item, isActive, isCollapsed, onClick }) => {
-  const baseClasses = "group flex items-center px-2 py-2 text-sm font-medium rounded-md transition-all duration-200";
+  const baseClasses = "group flex items-center px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-300 mb-1";
   const activeClasses = isActive 
-    ? "bg-gradient-to-r from-primary-100 to-primary-50 text-primary-900 border-l-4 border-primary-600 shadow-md" 
-    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 hover:shadow-sm";
+    ? "bg-blue-50 text-blue-600 shadow-sm" 
+    : "text-gray-600 hover:bg-gray-50 hover:text-blue-600 hover:translate-x-1";
   
   return (
     <Link
       to={item.href}
-      className={`${baseClasses} ${activeClasses} ${isCollapsed ? 'justify-center px-3' : ''}`}
+      className={`${baseClasses} ${activeClasses} ${isCollapsed ? 'justify-center px-2' : ''}`}
       title={isCollapsed ? item.name : ''}
       onClick={onClick}
     >
-      <Icon 
-        paths={item.icon} 
-        className={`h-6 w-6 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-primary-700 stroke-[2.5]' : 'text-gray-500'}`} 
-      />
-      {!isCollapsed && <span className="truncate font-semibold">{item.name}</span>}
+      <div className={`transition-transform duration-300 ${isActive ? 'scale-110' : 'group-hover:scale-110'}`}>
+        <Icon 
+          paths={item.icon} 
+          className={`h-5 w-5 flex-shrink-0 ${isCollapsed ? '' : 'mr-3'} ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-blue-500'}`} 
+        />
+      </div>
+      {!isCollapsed && <span className="truncate font-medium">{item.name}</span>}
     </Link>
   );
 };
 
 // Sidebar component
-const Sidebar = ({ navigation, location, isCollapsed, isMobileOpen, onMobileClose }) => {  
+const Sidebar = ({ navigation, location, isCollapsed, onMobileClose }) => {  
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-200 shadow-sm">
-      <div className="flex-1 flex flex-col pt-5 pb-4 overflow-y-auto">
+    <div className="flex flex-col h-full bg-white border-r border-gray-100 shadow-sm transition-all duration-300">
+      <div className="flex-1 flex flex-col pt-6 pb-4 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
         {/* Logo/Brand */}
-        <div className={`flex items-center flex-shrink-0 px-4 mb-6 ${isCollapsed ? 'justify-center' : ''}`}>
-          {isCollapsed ? (
-            <div className="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg">
-              <span className=" font-bold text-lg">IT</span>
+        <div className={`flex items-center flex-shrink-0 px-5 mb-8 ${isCollapsed ? 'justify-center' : ''}`}>
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:shadow-blue-500/50 transition-all duration-300 group-hover:scale-105">
+              <span className="text-white font-bold text-lg">IT</span>
             </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-700 rounded-lg flex items-center justify-center">
-                <span className=" font-bold text-sm">IT</span>
+            {!isCollapsed && (
+              <div className="flex flex-col">
+                <h1 className="text-xl font-bold text-gray-900 leading-none group-hover:text-blue-700 transition-colors">
+                  Jobs Admin
+                </h1>
+                <span className="text-xs text-gray-500 mt-1">Management System</span>
               </div>
-              <h1 className="text-xl font-bold ">
-                Jobs Admin
-              </h1>
-            </div>
-          )}
+            )}
+          </Link>
         </div>
 
         {/* Navigation */}
-        <nav className="mt-2 flex-1 px-2 space-y-1 overflow-y-auto">
+        <nav className="mt-2 flex-1 px-3 space-y-1 overflow-y-auto">
           {navigation.map((item) => (
             <NavigationItem
               key={item.name}
               item={item}
-              isActive={location.pathname === item.href}
+              isActive={location.pathname === item.href || location.pathname.startsWith(item.href + '/')}
               isCollapsed={isCollapsed}
               onClick={onMobileClose}
             />

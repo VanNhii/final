@@ -1,21 +1,22 @@
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import ReportModal from '@/components/common/ReportModal';
 import SimilarJobs from '@/components/common/SimilarJobs';
 import candidateService from '@/services/candidateService';
 import jobService from '@/services/jobService';
 import { useEffect, useState } from 'react';
-import { BsBookmark, BsBookmarkFill, BsBuilding, BsFire } from 'react-icons/bs';
+import { BsBookmark, BsBookmarkFill, BsBuilding, BsChatDots, BsFire, BsFlag } from 'react-icons/bs';
 import {
-    FiBriefcase,
-    FiCheckCircle,
-    FiChevronRight,
-    FiClock,
-    FiDollarSign,
-    FiGlobe,
-    FiHome,
-    FiMapPin,
-    FiSend,
-    FiShare2,
-    FiUsers
+  FiBriefcase,
+  FiCheckCircle,
+  FiChevronRight,
+  FiClock,
+  FiDollarSign,
+  FiGlobe,
+  FiHome,
+  FiMapPin,
+  FiSend,
+  FiShare2,
+  FiUsers
 } from 'react-icons/fi';
 import { MdWorkOutline } from 'react-icons/md';
 import { useSelector } from 'react-redux';
@@ -26,18 +27,19 @@ const JobDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isAuthenticated } = useSelector((state) => state.auth);
-  
+
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [relatedJobs, setRelatedJobs] = useState([]);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   // Fetch saved jobs status
   const fetchSavedStatus = async () => {
     if (!isAuthenticated || user?.role !== 'candidate') return;
-    
+
     try {
       const response = await candidateService.getSavedJobs();
       if (response.success && response.data) {
@@ -53,7 +55,7 @@ const JobDetail = () => {
   // Fetch application status for this job
   const fetchApplicationStatus = async () => {
     if (!isAuthenticated || user?.role !== 'candidate') return;
-    
+
     try {
       const response = await candidateService.getCandidateApplications();
       if (response.success && response.data) {
@@ -76,13 +78,13 @@ const JobDetail = () => {
         setLoading(true);
         setHasApplied(false); // reset when navigating between jobs
         const response = await jobService.getJobById(id);
-        
+
         if (response.success) {
           setJob(response.data);
-          
+
           // Fetch related jobs
           fetchRelatedJobs(response.data.category_id?._id);
-          
+
           // Check if job is saved and application status
           if (isAuthenticated && user?.role === 'candidate') {
             fetchSavedStatus();
@@ -112,7 +114,7 @@ const JobDetail = () => {
           category: categoryId,
           limit: 4
         });
-        
+
         if (response.success) {
           // Filter out current job
           const related = response.data.data.filter(relatedJob => relatedJob._id !== id);
@@ -249,8 +251,8 @@ const JobDetail = () => {
                 <div className="flex items-start">
                   <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl flex items-center justify-center mr-5 shadow-md">
                     {job.recruiter_id?.company_logo_url ? (
-                      <img 
-                        src={job.recruiter_id.company_logo_url} 
+                      <img
+                        src={job.recruiter_id.company_logo_url}
                         alt={job.recruiter_id.company_name}
                         className="w-14 h-14 object-contain rounded"
                       />
@@ -286,7 +288,7 @@ const JobDetail = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col space-y-2">
                   {job.is_urgent && (
                     <span className="bg-gradient-to-r from-red-500 to-red-600 text-white text-xs font-bold px-3 py-2 rounded-full shadow-md flex items-center">
@@ -307,11 +309,10 @@ const JobDetail = () => {
                 <button
                   onClick={handleApply}
                   disabled={hasApplied || applying}
-                  className={`flex items-center px-8 py-3.5 rounded-lg font-semibold transition-all duration-300 shadow-md ${
-                    hasApplied
-                      ? 'bg-green-100 text-green-800 cursor-not-allowed border-2 border-green-300'
-                      : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 hover:shadow-lg'
-                  }`}
+                  className={`flex items-center px-8 py-3.5 rounded-lg font-semibold transition-all duration-300 shadow-md ${hasApplied
+                    ? 'bg-green-100 text-green-800 cursor-not-allowed border-2 border-green-300'
+                    : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 hover:shadow-lg'
+                    }`}
                 >
                   {hasApplied ? (
                     <>
@@ -325,14 +326,13 @@ const JobDetail = () => {
                     </>
                   )}
                 </button>
-                
+
                 <button
                   onClick={handleSaveJob}
-                  className={`flex items-center px-6 py-3.5 rounded-lg font-semibold border-2 transition-all duration-300 shadow-md ${
-                    isSaved
-                      ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
-                      : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
-                  }`}
+                  className={`flex items-center px-6 py-3.5 rounded-lg font-semibold border-2 transition-all duration-300 shadow-md ${isSaved
+                    ? 'border-red-300 text-red-700 bg-red-50 hover:bg-red-100'
+                    : 'border-gray-300 text-gray-700 bg-white hover:bg-gray-50'
+                    }`}
                 >
                   {isSaved ? (
                     <>
@@ -346,15 +346,61 @@ const JobDetail = () => {
                     </>
                   )}
                 </button>
-                
-                <button 
+
+                <button
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      toast.info('Vui lòng đăng nhập để liên hệ');
+                      navigate('/login', { state: { from: `/jobs/${id}` } });
+                      return;
+                    }
+
+                    if (user?.role !== 'candidate') {
+                      toast.warning('Chỉ ứng viên mới có thể liên hệ với nhà tuyển dụng');
+                      return;
+                    }
+
+                    // Debug: log the full recruiter_id structure
+                    console.log('Recruiter data:', job.recruiter_id);
+                    console.log('Recruiter user_id:', job.recruiter_id?.user_id);
+
+                    // Get recruiter user ID - user_id should be populated with _id
+                    let recruiterUserId = null;
+
+                    // Check if user_id is populated as an object with _id
+                    if (job.recruiter_id?.user_id?._id) {
+                      recruiterUserId = job.recruiter_id.user_id._id;
+                      console.log('Found user_id._id:', recruiterUserId);
+                    }
+                    // Check if user_id is a string (just the ID)
+                    else if (job.recruiter_id?.user_id && typeof job.recruiter_id.user_id === 'string') {
+                      recruiterUserId = job.recruiter_id.user_id;
+                      console.log('Found user_id string:', recruiterUserId);
+                    }
+
+                    if (!recruiterUserId) {
+                      toast.error('Không tìm thấy thông tin liên hệ nhà tuyển dụng. Vui lòng tải lại trang.');
+                      console.error('Could not extract recruiter user ID. Full recruiter data:', job.recruiter_id);
+                      return;
+                    }
+
+                    console.log('Opening chat with recruiter user:', recruiterUserId);
+                    navigate(`/candidate/messages?userId=${recruiterUserId}`);
+                  }}
+                  className="flex items-center px-6 py-3.5 rounded-lg font-semibold border-2 border-blue-600 text-blue-600 bg-white hover:bg-blue-50 transition-all duration-300 shadow-md"
+                >
+                  <BsChatDots className="w-5 h-5 mr-2" />
+                  Chat với NTD
+                </button>
+
+                <button
                   onClick={() => {
                     if (navigator.share) {
                       navigator.share({
                         title: job.title,
                         text: `${job.title} tại ${job.recruiter_id?.company_name}`,
                         url: window.location.href
-                      }).catch(() => {});
+                      }).catch(() => { });
                     } else {
                       navigator.clipboard.writeText(window.location.href);
                       toast.success('Đã sao chép liên kết vào clipboard');
@@ -364,6 +410,22 @@ const JobDetail = () => {
                 >
                   <FiShare2 className="w-5 h-5 mr-2" />
                   Chia sẻ
+                </button>
+
+                <button
+                  onClick={() => {
+                    if (!isAuthenticated) {
+                      toast.info('Vui lòng đăng nhập để báo cáo vi phạm');
+                      navigate('/login', { state: { from: `/jobs/${id}` } });
+                      return;
+                    }
+                    setShowReportModal(true);
+                  }}
+                  className="flex items-center px-6 py-3.5 rounded-lg font-semibold border-2 border-gray-300 text-gray-500 bg-white hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all duration-300 shadow-md"
+                  title="Báo cáo tin tuyển dụng này"
+                >
+                  <BsFlag className="w-5 h-5 mr-2" />
+                  Báo cáo
                 </button>
               </div>
             </div>
@@ -453,9 +515,9 @@ const JobDetail = () => {
                 <div className="flex justify-between">
                   <span className="text-gray-500">Cấp bậc:</span>
                   <span className="text-gray-900 font-medium">
-                    {job.experience_required ? 
-                      (typeof job.experience_required === 'object' && job.experience_required.min !== undefined ? 
-                        `${job.experience_required.min}-${job.experience_required.max} năm` : 
+                    {job.experience_required ?
+                      (typeof job.experience_required === 'object' && job.experience_required.min !== undefined ?
+                        `${job.experience_required.min}-${job.experience_required.max} năm` :
                         job.experience_required
                       ) : 'Không yêu cầu'
                     }
@@ -506,8 +568,8 @@ const JobDetail = () => {
                 <div className="text-center mb-4">
                   <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
                     {job.recruiter_id.company_logo_url ? (
-                      <img 
-                        src={job.recruiter_id.company_logo_url} 
+                      <img
+                        src={job.recruiter_id.company_logo_url}
                         alt={job.recruiter_id.company_name}
                         className="w-14 h-14 object-contain rounded"
                       />
@@ -520,7 +582,7 @@ const JobDetail = () => {
                     <p className="text-sm text-gray-500">{job.recruiter_id.industry}</p>
                   )}
                 </div>
-                
+
                 {job.recruiter_id.company_description && (
                   <p className="text-sm text-gray-600 mb-4 line-clamp-4">
                     {job.recruiter_id.company_description}
@@ -543,9 +605,9 @@ const JobDetail = () => {
                         <FiGlobe className="w-4 h-4 mr-2" />
                         Website:
                       </span>
-                      <a 
-                        href={job.recruiter_id.website} 
-                        target="_blank" 
+                      <a
+                        href={job.recruiter_id.website}
+                        target="_blank"
                         rel="noopener noreferrer"
                         className="text-blue-600 hover:text-blue-700 font-medium truncate max-w-[120px] flex items-center"
                       >
@@ -608,6 +670,16 @@ const JobDetail = () => {
           </div>
         </div>
       </div>
+      {/* Report Modal */}
+      {job && (
+        <ReportModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          entityType="Job"
+          entityId={job._id}
+          entityTitle={job.title}
+        />
+      )}
     </div>
   );
 };

@@ -64,9 +64,9 @@ class ModelTrainer:
         logger.info(f"Positive samples: {y.sum()}, Negative samples: {len(y) - y.sum()}")
         
         # Check minimum samples required for train/test split
-        min_samples_required = 5  # Minimum samples needed for meaningful training
+        min_samples_required = 10  # Increased minimum samples needed for split
         if len(y) < min_samples_required:
-            logger.warning(f"Insufficient training samples: {len(y)}. Need at least {min_samples_required}.")
+            logger.warning(f"Insufficient training samples: {len(y)}. Need at least {min_samples_required} for split.")
             # If we have very few samples, use all for training (no test split)
             if len(y) >= 2:
                 logger.info("Using all available data for training (no test split)")
@@ -75,12 +75,24 @@ class ModelTrainer:
                 logger.error("Not enough samples to train. Need at least 2 samples.")
                 return None, None, None, None
         
+        # Determine if we can stratify
+        n_classes = len(np.unique(y))
+        # Estimate test size (sklearn uses ceil usually, but safe estimate is floor or just check ratio)
+        test_size_samples = int(np.ceil(len(y) * self.config.VALIDATION_SPLIT))
+        
+        should_stratify = (
+            n_classes > 1 and 
+            y.sum() >= 2 and 
+            (len(y) - y.sum()) >= 2 and
+            test_size_samples >= n_classes  # Ensure test set can represent all classes
+        )
+        
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, 
             test_size=self.config.VALIDATION_SPLIT,
             random_state=42,
-            stratify=y if len(np.unique(y)) > 1 and y.sum() >= 2 and (len(y) - y.sum()) >= 2 else None
+            stratify=y if should_stratify else None
         )
         
         return X_train, X_test, y_train, y_test

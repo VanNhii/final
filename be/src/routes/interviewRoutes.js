@@ -4,7 +4,10 @@ const {
   getInterview,
   createInterview,
   updateInterview,
-  deleteInterview
+  deleteInterview,
+  confirmInterview,
+  rejectInterview,
+  updateInterviewStatus
 } = require('../controllers/interviewController');
 
 const { protect, authorize } = require('../middleware/auth');
@@ -12,6 +15,10 @@ const { protect, authorize } = require('../middleware/auth');
 const router = express.Router();
 
 router.use(protect); // All routes below require authentication
+
+router.route('/:id/confirm').put(authorize('candidate'), confirmInterview);
+router.route('/:id/reject').put(authorize('candidate'), rejectInterview);
+router.route('/:id/status').put(authorize('recruiter', 'admin'), updateInterviewStatus);
 
 router
   .route('/')

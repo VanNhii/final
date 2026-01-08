@@ -29,6 +29,31 @@ const RecruiterInterviews = () => {
     return `${baseUrl}${cvPath.startsWith('/') ? '' : '/'}${cvPath}`;
   };
 
+  const handleViewCV = async (cvPath) => {
+    if (!cvPath) {
+      toast.error('Không tìm thấy CV');
+      return;
+    }
+
+    const cvUrl = getCVUrl(cvPath);
+
+    try {
+      // Try to check if file exists with a HEAD request
+      const response = await fetch(cvUrl, { method: 'HEAD' });
+
+      if (response.ok) {
+        // File exists, open in new tab
+        window.open(cvUrl, '_blank');
+      } else {
+        toast.error('File CV không tồn tại hoặc đã bị xóa');
+      }
+    } catch (error) {
+      // If HEAD request fails, try opening anyway (might be CORS issue)
+      console.warn('Could not check CV file, opening anyway:', error);
+      window.open(cvUrl, '_blank');
+    }
+  };
+
   useEffect(() => {
     fetchInterviews();
   }, [filters, pagination.page]);
@@ -36,15 +61,15 @@ const RecruiterInterviews = () => {
   const fetchInterviews = async () => {
     try {
       setLoading(true);
-      
+
       const params = {
         page: pagination.page,
         limit: pagination.limit,
         ...filters
       };
-      
+
       const response = await recruiterService.getInterviews(params);
-      
+
       if (response.success) {
         setInterviews(response.data || []);
         setPagination(prev => ({
@@ -58,7 +83,7 @@ const RecruiterInterviews = () => {
     } catch (error) {
       console.error('Interviews fetch error:', error);
       toast.error('Không thể tải danh sách phỏng vấn');
-      
+
       // Fallback to empty data on error
       setInterviews([]);
       setPagination(prev => ({
@@ -82,7 +107,7 @@ const RecruiterInterviews = () => {
   const handleStatusUpdate = async (interviewId, newStatus) => {
     try {
       const response = await recruiterService.updateInterviewStatus(interviewId, newStatus);
-      
+
       if (response.success) {
         setInterviews(prevInterviews =>
           prevInterviews.map(interview =>
@@ -103,10 +128,10 @@ const RecruiterInterviews = () => {
 
   const handleDeleteInterview = async (interviewId) => {
     if (!window.confirm('Bạn có chắc chắn muốn xóa cuộc phỏng vấn này?')) return;
-    
+
     try {
       const response = await recruiterService.deleteInterview(interviewId);
-      
+
       if (response.success) {
         setInterviews(prevInterviews =>
           prevInterviews.filter(interview => interview._id !== interviewId)
@@ -129,7 +154,7 @@ const RecruiterInterviews = () => {
       no_show: 'bg-gray-100 text-gray-800',
       rescheduled: 'bg-yellow-100 text-yellow-800'
     };
-    
+
     const labels = {
       scheduled: 'Đã lên lịch',
       completed: 'Hoàn thành',
@@ -151,7 +176,7 @@ const RecruiterInterviews = () => {
       hr: 'bg-green-100 text-green-800',
       final: 'bg-orange-100 text-orange-800'
     };
-    
+
     const labels = {
       technical: 'Kỹ thuật',
       hr: 'HR',
@@ -167,7 +192,7 @@ const RecruiterInterviews = () => {
 
   const getRatingStars = (rating) => {
     if (!rating) return <span className="text-gray-400">Chưa đánh giá</span>;
-    
+
     return (
       <div className="flex items-center">
         {[...Array(5)].map((_, i) => (
@@ -188,6 +213,7 @@ const RecruiterInterviews = () => {
   const interviewStats = {
     total: interviews.length,
     scheduled: interviews.filter(i => i.status === 'scheduled').length,
+    confirmed: interviews.filter(i => i.candidate_confirmation?.is_confirmed).length,
     completed: interviews.filter(i => i.status === 'completed').length,
     cancelled: interviews.filter(i => i.status === 'cancelled').length,
     today: interviews.filter(i => {
@@ -231,7 +257,7 @@ const RecruiterInterviews = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-6">
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
@@ -245,7 +271,7 @@ const RecruiterInterviews = () => {
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
           <div className="flex items-center justify-between">
             <div>
@@ -255,6 +281,20 @@ const RecruiterInterviews = () => {
             <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
               <svg className="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Đã xác nhận</p>
+              <p className="text-2xl font-bold text-green-600">{interviewStats.confirmed}</p>
+            </div>
+            <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
@@ -303,6 +343,54 @@ const RecruiterInterviews = () => {
         </div>
       </div>
 
+      {/* Confirmation Status Summary */}
+      <div className="bg-white shadow rounded-lg p-6">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Trạng thái xác nhận</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-600">Đã xác nhận</p>
+                <p className="text-2xl font-bold text-green-700 mt-1">
+                  {interviews.filter(i => i.candidate_confirmation?.status === 'confirmed').length}
+                </p>
+              </div>
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+
+          <div className="bg-red-50 p-4 rounded-lg border border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-red-600">Đã từ chối</p>
+                <p className="text-2xl font-bold text-red-700 mt-1">
+                  {interviews.filter(i => i.candidate_confirmation?.status === 'rejected').length}
+                </p>
+              </div>
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+
+          <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-yellow-600">Chờ xác nhận</p>
+                <p className="text-2xl font-bold text-yellow-700 mt-1">
+                  {interviews.filter(i => !i.candidate_confirmation?.status || i.candidate_confirmation?.status === 'pending').length}
+                </p>
+              </div>
+              <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -316,7 +404,7 @@ const RecruiterInterviews = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Trạng thái</label>
             <select
@@ -397,10 +485,10 @@ const RecruiterInterviews = () => {
                     <div className="flex items-center space-x-3 mb-3">
                       <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
                         {interview.candidate_id?.user_id?.avatar_url ? (
-                          <img 
-                            src={interview.candidate_id.user_id.avatar_url} 
+                          <img
+                            src={interview.candidate_id.user_id.avatar_url}
                             alt={interview.candidate_id.full_name}
-                            className="w-full h-full rounded-full object-cover" 
+                            className="w-full h-full rounded-full object-cover"
                           />
                         ) : (
                           <span className="text-lg text-gray-400">👤</span>
@@ -418,10 +506,26 @@ const RecruiterInterviews = () => {
                       </div>
                       <div className="flex flex-col items-end space-y-1">
                         {getStatusBadge(interview.status)}
+                        {/* Show confirmation status */}
+                        {interview.candidate_confirmation?.status === 'confirmed' && (
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-50 text-green-700 border border-green-200">
+                            ✓ Đã xác nhận
+                          </span>
+                        )}
+                        {interview.candidate_confirmation?.status === 'rejected' && (
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-50 text-red-700 border border-red-200">
+                            ✗ Đã từ chối
+                          </span>
+                        )}
+                        {(!interview.candidate_confirmation?.status || interview.candidate_confirmation?.status === 'pending') && interview.status === 'scheduled' && (
+                          <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-50 text-yellow-700 border border-yellow-200">
+                            ⏳ Chờ phản hồi
+                          </span>
+                        )}
                         {interview.interview_type && getInterviewTypeBadge(interview.interview_type)}
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
                       <div className="flex items-center">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -429,21 +533,21 @@ const RecruiterInterviews = () => {
                         </svg>
                         {formatDateTime(interview.interview_date)}
                       </div>
-                      
+
                       <div className="flex items-center">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                         {interview.duration || 60} phút
                       </div>
-                      
+
                       <div className="flex items-center">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                         </svg>
                         {interview.interview_method === 'online' ? 'Trực tuyến' : interview.location || 'Văn phòng'}
                       </div>
-                      
+
                       <div className="flex items-center">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -468,7 +572,7 @@ const RecruiterInterviews = () => {
 
                     {interview.meeting_link && (
                       <div className="mb-3">
-                        <a 
+                        <a
                           href={interview.meeting_link}
                           target="_blank"
                           rel="noopener noreferrer"
@@ -500,14 +604,14 @@ const RecruiterInterviews = () => {
                         </button>
                       </>
                     )}
-                    
+
                     <button
                       onClick={() => setSelectedInterview(interview)}
                       className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50"
                     >
                       Chi tiết
                     </button>
-                    
+
                     <button
                       onClick={() => handleDeleteInterview(interview._id)}
                       className="inline-flex items-center px-3 py-1.5 border border-red-300 text-sm font-medium rounded-lg text-red-700 bg-white hover:bg-red-50"
@@ -528,7 +632,7 @@ const RecruiterInterviews = () => {
           <div className="relative top-20 mx-auto p-5 border w-11/12 md:w-2/3 lg:w-1/2 shadow-lg rounded-md bg-white">
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-gray-900">Chi tiết phỏng vấn</h3>
-              <button 
+              <button
                 onClick={() => setSelectedInterview(null)}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -543,10 +647,10 @@ const RecruiterInterviews = () => {
               <div className="flex items-center space-x-4 p-4 bg-blue-50 rounded-lg">
                 <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
                   {selectedInterview.candidate_id?.user_id?.avatar_url ? (
-                    <img 
+                    <img
                       src={selectedInterview.candidate_id.user_id.avatar_url}
                       alt=""
-                      className="w-full h-full rounded-full object-cover" 
+                      className="w-full h-full rounded-full object-cover"
                     />
                   ) : (
                     <span className="text-2xl text-gray-400">👤</span>
@@ -585,9 +689,33 @@ const RecruiterInterviews = () => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Trạng thái</label>
-                  <div>{getStatusBadge(selectedInterview.status)}</div>
+                  <div className="space-y-2">
+                    {getStatusBadge(selectedInterview.status)}
+                    {selectedInterview.candidate_confirmation?.is_confirmed && (
+                      <div className="flex items-center text-green-600 text-sm font-medium">
+                        <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Đã xác nhận tham gia
+                        {selectedInterview.candidate_confirmation.confirmed_at && (
+                          <span className="text-gray-500 ml-1 font-normal">
+                            ({new Date(selectedInterview.candidate_confirmation.confirmed_at).toLocaleDateString('vi-VN')})
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
+
+              {selectedInterview.candidate_confirmation?.message && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tin nhắn từ ứng viên</label>
+                  <div className="bg-green-50 p-3 rounded-lg border border-green-100">
+                    <p className="text-sm text-gray-900">{selectedInterview.candidate_confirmation.message}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Location/Link */}
               <div>
@@ -595,7 +723,7 @@ const RecruiterInterviews = () => {
                   {selectedInterview.interview_method === 'online' ? 'Link phỏng vấn' : 'Địa điểm'}
                 </label>
                 {selectedInterview.meeting_link ? (
-                  <a 
+                  <a
                     href={selectedInterview.meeting_link}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -621,23 +749,21 @@ const RecruiterInterviews = () => {
               {/* CV Link */}
               {selectedInterview.application_id?.cv_url && (
                 <div>
-                  <a
-                    href={getCVUrl(selectedInterview.application_id.cv_url)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() => handleViewCV(selectedInterview.application_id.cv_url)}
                     className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                   >
                     <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     Xem CV ứng viên
-                  </a>
+                  </button>
                 </div>
               )}
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t">
-                <button 
+                <button
                   onClick={() => setSelectedInterview(null)}
                   className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
                 >
@@ -645,7 +771,7 @@ const RecruiterInterviews = () => {
                 </button>
                 {selectedInterview.status === 'scheduled' && (
                   <>
-                    <button 
+                    <button
                       onClick={() => {
                         handleStatusUpdate(selectedInterview._id, 'completed');
                         setSelectedInterview(null);
@@ -654,7 +780,7 @@ const RecruiterInterviews = () => {
                     >
                       Đánh dấu hoàn thành
                     </button>
-                    <button 
+                    <button
                       onClick={() => {
                         handleStatusUpdate(selectedInterview._id, 'cancelled');
                         setSelectedInterview(null);
@@ -715,21 +841,20 @@ const RecruiterInterviews = () => {
                     <path fillRule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clipRule="evenodd" />
                   </svg>
                 </button>
-                
+
                 {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
                   <button
                     key={page}
                     onClick={() => setPagination(prev => ({ ...prev, page }))}
-                    className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
-                      page === pagination.page
-                        ? 'z-10 bg-blue-600 text-white focus:outline-2 focus:outline-offset-2 focus:outline-blue-600'
-                        : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
-                    }`}
+                    className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${page === pagination.page
+                      ? 'z-10 bg-blue-600 text-white focus:outline-2 focus:outline-offset-2 focus:outline-blue-600'
+                      : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                      }`}
                   >
                     {page}
                   </button>
                 ))}
-                
+
                 <button
                   onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
                   disabled={pagination.page === pagination.totalPages}

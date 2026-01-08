@@ -8,22 +8,36 @@ const { sendNotificationToUser } = require('../utils/socket');
 exports.getMessages = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
-    
+
     const query = {
       $or: [
         { sender_id: req.user.id },
         { receiver_id: req.user.id }
       ]
     };
-    
+
     const messagesQuery = Message.find(query)
-      .populate('sender_id', 'first_name last_name email avatar_url role')
-      .populate('receiver_id', 'first_name last_name email avatar_url role')
+      .populate({
+        path: 'sender_id',
+        select: 'first_name last_name email avatar_url role',
+        populate: {
+          path: 'recruiter_profile',
+          select: 'company_name company_logo_url logo_url'
+        }
+      })
+      .populate({
+        path: 'receiver_id',
+        select: 'first_name last_name email avatar_url role',
+        populate: {
+          path: 'recruiter_profile',
+          select: 'company_name company_logo_url logo_url'
+        }
+      })
       .sort('-sent_at');
-    
+
     const messages = await applyPagination(messagesQuery, page, limit, skip);
     const total = await Message.countDocuments(query);
-    
+
     res.status(200).json(buildPaginationResponse(messages, total, page, limit));
   } catch (error) {
     next(error);
@@ -37,7 +51,7 @@ exports.getInboxMessages = async (req, res, next) => {
   try {
     const messages = await Message.find({ receiver_id: req.user.id })
       .sort('-sent_at');
-    
+
     res.status(200).json({
       success: true,
       count: messages.length,
@@ -55,7 +69,7 @@ exports.getSentMessages = async (req, res, next) => {
   try {
     const messages = await Message.find({ sender_id: req.user.id })
       .sort('-sent_at');
-    
+
     res.status(200).json({
       success: true,
       count: messages.length,
@@ -72,14 +86,14 @@ exports.getSentMessages = async (req, res, next) => {
 exports.getMessage = async (req, res, next) => {
   try {
     const message = await Message.findById(req.params.id);
-    
+
     if (!message) {
       return res.status(404).json({
         success: false,
         message: 'Message not found'
       });
     }
-    
+
     // Make sure user is sender or receiver
     if (message.sender_id.toString() !== req.user.id && message.receiver_id.toString() !== req.user.id) {
       return res.status(401).json({
@@ -87,7 +101,7 @@ exports.getMessage = async (req, res, next) => {
         message: 'Not authorized to access this message'
       });
     }
-    
+
     // Mark as read if user is receiver
     if (message.receiver_id.toString() === req.user.id && !message.is_read) {
       await Message.findByIdAndUpdate(req.params.id, {
@@ -95,7 +109,7 @@ exports.getMessage = async (req, res, next) => {
         read_at: new Date()
       });
     }
-    
+
     res.status(200).json({
       success: true,
       data: message
@@ -111,23 +125,23 @@ exports.getMessage = async (req, res, next) => {
 exports.sendMessage = async (req, res, next) => {
   try {
     req.body.sender_id = req.user.id;
-    
+
     const message = await Message.create(req.body);
-    
+
     // Populate the message
     await message.populate('sender_id', 'first_name last_name email avatar_url role');
     await message.populate('receiver_id', 'first_name last_name email avatar_url role');
-    
+
     // Send real-time notification via socket
     const senderName = req.user.first_name && req.user.last_name
       ? `${req.user.first_name} ${req.user.last_name}`
       : req.user.email;
-    
+
     // Emit new_message event to both users
     const { sendSocketEventToUser } = require('../utils/socket');
     sendSocketEventToUser(req.body.receiver_id, 'new_message', message);
     sendSocketEventToUser(req.user.id, 'new_message', message);
-    
+
     // Also send notification
     sendNotificationToUser(req.body.receiver_id, {
       type: 'new_message',
@@ -138,7 +152,7 @@ exports.sendMessage = async (req, res, next) => {
       content: message.content.substring(0, 100) + '...',
       timestamp: message.sent_at
     });
-    
+
     res.status(201).json({
       success: true,
       data: message
@@ -154,14 +168,14 @@ exports.sendMessage = async (req, res, next) => {
 exports.replyToMessage = async (req, res, next) => {
   try {
     const originalMessage = await Message.findById(req.params.id);
-    
+
     if (!originalMessage) {
       return res.status(404).json({
         success: false,
         message: 'Original message not found'
       });
     }
-    
+
     // Create reply
     const replyData = {
       sender_id: req.user.id,
@@ -173,9 +187,9 @@ exports.replyToMessage = async (req, res, next) => {
       related_application_id: originalMessage.related_application_id,
       related_job_id: originalMessage.related_job_id
     };
-    
+
     const reply = await Message.create(replyData);
-    
+
     res.status(201).json({
       success: true,
       data: reply
@@ -191,14 +205,14 @@ exports.replyToMessage = async (req, res, next) => {
 exports.deleteMessage = async (req, res, next) => {
   try {
     const message = await Message.findById(req.params.id);
-    
+
     if (!message) {
       return res.status(404).json({
         success: false,
         message: 'Message not found'
       });
     }
-    
+
     // Make sure user is sender or receiver
     if (message.sender_id.toString() !== req.user.id && message.receiver_id.toString() !== req.user.id) {
       return res.status(401).json({
@@ -206,9 +220,9 @@ exports.deleteMessage = async (req, res, next) => {
         message: 'Not authorized to delete this message'
       });
     }
-    
+
     await message.deleteOne();
-    
+
     res.status(200).json({
       success: true,
       data: {}
@@ -224,7 +238,7 @@ exports.deleteMessage = async (req, res, next) => {
 exports.markMessagesAsRead = async (req, res, next) => {
   try {
     const { messageIds } = req.body;
-    
+
     if (!messageIds || !Array.isArray(messageIds)) {
       return res.status(400).json({
         success: false,
@@ -248,7 +262,7 @@ exports.markMessagesAsRead = async (req, res, next) => {
     // Emit socket events for each marked message
     const { sendSocketEventToUser } = require('../utils/socket');
     const messages = await Message.find({ _id: { $in: messageIds } });
-    
+
     messages.forEach(msg => {
       sendSocketEventToUser(msg.sender_id.toString(), 'message_read', {
         messageId: msg._id,
@@ -281,6 +295,79 @@ exports.getUnreadCount = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: { count }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get conversation messages with a specific user
+// @route   GET /api/v1/messages/conversation/:userId
+// @access  Private
+exports.getConversationMessages = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const { limit = 50, page = 1 } = req.query;
+
+    // Get messages between current user and the specified user
+    const query = {
+      $or: [
+        { sender_id: req.user.id, receiver_id: userId },
+        { sender_id: userId, receiver_id: req.user.id }
+      ]
+    };
+
+    const messages = await Message.find(query)
+      .populate({
+        path: 'sender_id',
+        select: 'first_name last_name email avatar_url role',
+        populate: {
+          path: 'recruiter_profile',
+          select: 'company_name company_logo_url logo_url'
+        }
+      })
+      .populate({
+        path: 'receiver_id',
+        select: 'first_name last_name email avatar_url role',
+        populate: {
+          path: 'recruiter_profile',
+          select: 'company_name company_logo_url logo_url'
+        }
+      })
+      .sort('-sent_at')
+      .limit(parseInt(limit));
+
+    res.status(200).json({
+      success: true,
+      count: messages.length,
+      data: messages
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete conversation with a specific user
+// @route   DELETE /api/v1/messages/conversations/:userId
+// @access  Private
+exports.deleteConversation = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    // Delete all messages between current user and the specified user
+    const result = await Message.deleteMany({
+      $or: [
+        { sender_id: req.user.id, receiver_id: userId },
+        { sender_id: userId, receiver_id: req.user.id }
+      ]
+    });
+
+    res.status(200).json({
+      success: true,
+      data: {
+        deletedCount: result.deletedCount
+      },
+      message: 'Conversation deleted successfully'
     });
   } catch (error) {
     next(error);

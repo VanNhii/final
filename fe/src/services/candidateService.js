@@ -7,7 +7,7 @@ const candidateService = {
   },
 
   // Get candidate profile by ID (for recruiters)
-  getCandidateProfile: async (candidateId) => {
+  getCandidateDetail: async (candidateId) => {
     return await apiClient.get(`/recruiters/candidates/${candidateId}`);
   },
 
@@ -71,6 +71,14 @@ const candidateService = {
   // Interviews
   getCandidateInterviews: async (params = {}) => {
     return await apiClient.get('/candidates/interviews', params);
+  },
+
+  confirmInterview: async (interviewId, data) => {
+    return await apiClient.put(`/interviews/${interviewId}/confirm`, data);
+  },
+
+  rejectInterview: async (interviewId, data) => {
+    return await apiClient.put(`/interviews/${interviewId}/reject`, data);
   },
 
   // Experience management
@@ -162,6 +170,15 @@ const candidateService = {
     return await apiClient.delete(`/messages/${messageId}`);
   },
 
+  // New conversation endpoints
+  getConversationMessages: async (userId, params = {}) => {
+    return await apiClient.get(`/messages/conversation/${userId}`, params);
+  },
+
+  deleteConversation: async (userId) => {
+    return await apiClient.delete(`/messages/conversations/${userId}`);
+  },
+
   // Notifications
   getNotifications: async (params = {}) => {
     return await apiClient.get('/candidates/notifications', params);
@@ -182,6 +199,11 @@ const candidateService = {
   // User profile (for updating user fields like avatar)
   updateUserProfile: async (userId, userData) => {
     return await apiClient.put(`/users/${userId}`, userData);
+  },
+
+  // Get generic user info (e.g. for chat)
+  getUserInfo: async (userId) => {
+    return await apiClient.get(`/users/${userId}`);
   }
 };
 

@@ -63,14 +63,19 @@ const JobsManagement = () => {
         setTotalJobs(response.pagination?.total || 0);
         setPagination(response.pagination || {});
         
-        // Calculate stats
-        const allJobs = response.data || [];
-        setStats({
-          total: allJobs.length,
-          pending: allJobs.filter(j => j.status === 'pending').length,
-          active: allJobs.filter(j => j.status === 'approved').length,
-          rejected: allJobs.filter(j => j.status === 'rejected').length
-        });
+        // Use stats from backend if available, otherwise fallback
+        if (response.stats) {
+          setStats(response.stats);
+        } else {
+          // Fallback - simplified stats from current view (not accurate for total)
+          const allJobs = response.data || [];
+          setStats({
+            total: response.pagination?.total || allJobs.length,
+            pending: 0,
+            active: 0,
+            rejected: 0
+          });
+        }
       } else {
         throw new Error(response.message || 'Failed to fetch jobs');
       }

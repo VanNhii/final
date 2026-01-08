@@ -13,7 +13,8 @@ const reportSchema = new mongoose.Schema({
   },
   reported_entity_id: {
     type: mongoose.Schema.Types.ObjectId,
-    required: true
+    required: true,
+    refPath: 'reported_entity_type'
   },
   report_type: {
     type: String,
@@ -90,10 +91,10 @@ reportSchema.index({ priority: 1 });
 reportSchema.pre(/^find/, function(next) {
   this.populate({
     path: 'reporter_id',
-    select: 'full_name email role'
+    select: 'full_name email role first_name last_name'
   }).populate({
     path: 'resolved_by',
-    select: 'full_name email'
+    select: 'full_name email first_name last_name'
   });
   next();
 });

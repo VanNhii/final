@@ -1,7 +1,7 @@
 import { logout } from "@/store/slices/authSlice";
 import { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Link, useNavigate } from "react-router";
+import { Link, NavLink, useNavigate } from "react-router";
 import { toast } from "react-toastify";
 
 const Header = () => {
@@ -27,54 +27,43 @@ const Header = () => {
     return dashboardPaths[user.role] || "/";
   };
 
+  const navLinkClass = ({ isActive }) =>
+    `px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+      isActive
+        ? "text-primary-600 bg-primary-50 shadow-sm ring-1 ring-primary-200"
+        : "text-gray-700 hover:text-primary-600 hover:bg-gray-50 hover:shadow-sm"
+    }`;
+
   return (
-    <header className="bg-white shadow-lg">
+    <header className="bg-white shadow-lg sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
           <div className="flex-shrink-0">
-            <Link to="/" className="flex items-center">
-              <span className="text-2xl font-bold text-primary-600">
+            <Link to="/" className="flex items-center group">
+              <span className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary-600 to-blue-600 group-hover:from-primary-500 group-hover:to-blue-500 transition-all duration-300">
                 IT Jobs
               </span>
             </Link>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex space-x-8 ">
-            <Link
-              to="/"
-              className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
+          <nav className="hidden md:flex space-x-2">
+            <NavLink to="/" className={navLinkClass}>
               Trang chủ
-            </Link>
-            <Link
-              to="/jobs"
-              className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
+            </NavLink>
+            <NavLink to="/jobs" className={navLinkClass}>
               Việc làm
-            </Link>
-            {/* tìm ứng viên */}
-            <Link
-              to="/find-candidates"
-              className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
+            </NavLink>
+            <NavLink to="/find-candidates" className={navLinkClass}>
               Tìm ứng viên
-            </Link>
-            {/*  bài blog */}
-
-            <Link
-              to="/blog"
-              className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
+            </NavLink>
+            <NavLink to="/blog" className={navLinkClass}>
               Bài blog
-            </Link>
-            <Link
-              to="/about"
-              className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
-            >
+            </NavLink>
+            <NavLink to="/about" className={navLinkClass}>
               Về chúng tôi
-            </Link>
+            </NavLink>
           </nav>
 
           {/* User Menu */}

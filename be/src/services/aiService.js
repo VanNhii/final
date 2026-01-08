@@ -243,11 +243,20 @@ const getUserPreferences = async (userId) => {
  */
 const checkHealth = async () => {
   try {
-    const response = await aiClient.get('/health');
+    // Check Recommendation Service first (priority for Admin Dashboard)
+    const response = await aiRecommendClient.get('/health');
     return response.data;
   } catch (error) {
-    console.warn('AI Service health check failed:', error.message);
-    return { status: 'unavailable', error: error.message };
+    console.warn('AI Recommend Service health check failed:', error.message);
+    
+    // Fallback to Chat Service
+    try {
+      const response = await aiClient.get('/health');
+      return response.data;
+    } catch (chatError) {
+      console.warn('AI Chat Service health check failed:', chatError.message);
+      return { status: 'unavailable', error: error.message };
+    }
   }
 };
 

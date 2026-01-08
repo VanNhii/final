@@ -110,14 +110,14 @@ def normalize_city(city: str) -> str:
 def normalize_work_location(s: str) -> str:
     s = norm_basic(s)
     if not s:
-        return ""
+        return s
     if "remote" in s:
         return "remote"
     if "hybrid" in s:
         return "hybrid"
     if "on site" in s or "onsite" in s or "on-site" in s:
         return "on-site"
-    return ""
+    return s
 
 
 # ----------------------------
@@ -144,7 +144,6 @@ class SkillNormalizer:
         self._id_to_display: Dict[str, str] = {}
         self._syn_to_id: Dict[str, str] = {}
         self._critical: List[str] = []
-        self._category_map: Dict[str, str] = {}
         self._syn_patterns: Dict[str, List[re.Pattern]] = {}
         self._negative_keywords: Dict[str, List[str]] = {}
         self._load()
@@ -201,11 +200,7 @@ class SkillNormalizer:
                     if isinstance(skills_list, list):
                         for skill in skills_list:
                             if skill:
-                                skill_clean = clean_text(skill)
-                                all_whitelist_skills.add(skill_clean)
-                                sid = norm_basic(skill_clean)
-                                if sid and sid not in self._category_map:
-                                    self._category_map[sid] = str(category)
+                                all_whitelist_skills.add(clean_text(skill))
                 
                 # Add whitelist skills that aren't already in aliases
                 for skill_display in all_whitelist_skills:
@@ -337,26 +332,6 @@ class SkillNormalizer:
         sid = norm_basic(sid)
         return self._id_to_display.get(sid, sid)
 
-    def category_for_skill(self, s: str) -> str:
-        sid = self.normalize_one_norm(s, allow_unknown=True)
-        if not sid:
-            return "general"
-        cat = self._category_map.get(sid)
-        if cat:
-            return cat
-        t = sid
-        if "ui" in t or "ux" in t or "design" in t:
-            return "design"
-        if "project" in t or "pm" in t or "scrum" in t:
-            return "management"
-        if "qa" in t or "test" in t:
-            return "qa_testing"
-        if "devops" in t or "cicd" in t or "ci cd" in t or "linux" in t:
-            return "cloud_devops"
-        if "data" in t or "ml" in t or "ai" in t or "machine" in t:
-            return "ai_data_science"
-        return "general"
-
     def classify_many_norm(self, skills: Iterable[str], dedup: bool = True) -> Tuple[List[str], List[str], List[str]]:
         """
         Returns: (known_display, known_norm, unknown_norm)
@@ -444,17 +419,3 @@ def normalize_skill_list(xs: Iterable[str]) -> List[str]:
         if n:
             out.append(n)
     return sorted(list(set(out)))
-
-
-import hashlib
-
-def fingerprint_text(text: str) -> str:
-    '''
-    Create a stable short fingerprint for deduping chat messages.
-    - uses norm_basic() so OK/ok/extra spaces won't duplicate
-    '''
-    t = norm_basic(text or "")
-    if not t:
-        return ""
-    h = hashlib.sha1(t.encode("utf-8")).hexdigest()
-    return h[:16]

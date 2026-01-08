@@ -955,7 +955,23 @@ exports.getJobs = async (req, res, next) => {
     const jobs = await applyPagination(jobsQuery, page, limit, skip);
     const totalJobs = await Job.countDocuments(query);
 
-    res.status(200).json(buildPaginationResponse(jobs, totalJobs, page, limit));
+    // Get overall stats (independent of pagination/filters)
+    const [statsTotal, statsPending, statsApproved, statsRejected] = await Promise.all([
+      Job.countDocuments(),
+      Job.countDocuments({ status: 'pending' }),
+      Job.countDocuments({ status: 'approved' }),
+      Job.countDocuments({ status: 'rejected' })
+    ]);
+
+    const response = buildPaginationResponse(jobs, totalJobs, page, limit);
+    response.stats = {
+      total: statsTotal,
+      pending: statsPending,
+      active: statsApproved,
+      rejected: statsRejected
+    };
+
+    res.status(200).json(response);
   } catch (error) {
     next(error);
   }
@@ -1022,9 +1038,7 @@ exports.getReports = async (req, res, next) => {
     if (priority) query.priority = priority;
 
     const reportsQuery = Report.find(query)
-      .populate('reporter_id', 'email first_name last_name')
-      .populate('reported_user_id', 'email first_name last_name')
-      .populate('resolved_by', 'email first_name last_name');
+      .populate('reported_entity_id');
 
     const reports = await applyPagination(reportsQuery, page, limit, skip);
     const totalReports = await Report.countDocuments(query);
@@ -1060,8 +1074,8 @@ exports.resolveReport = async (req, res, next) => {
     await report.save();
 
     // If action is to suspend user, update user status
-    if (resolution_action === 'suspend_user' && report.reported_user_id) {
-      await User.findByIdAndUpdate(report.reported_user_id, {
+    if (resolution_action === 'suspend_user' && report.reported_entity_type === 'User' && report.reported_entity_id) {
+      await User.findByIdAndUpdate(report.reported_entity_id, {
         is_active: false,
         account_status: 'suspended',
         status_reason: `Suspended due to report: ${report.report_type}`,

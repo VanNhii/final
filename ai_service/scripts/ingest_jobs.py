@@ -20,7 +20,6 @@ from src.facts_layer import (  # noqa: E402
     chunk_words,
     now_utc,
     clean_text,
-    norm_basic,
     normalize_city,
     normalize_work_location,
 )
@@ -58,94 +57,6 @@ if not os.path.exists(SKILLS_PATH):
     SKILLS_PATH = os.path.join(PROJECT_ROOT, "skills.json")
 
 skill_norm = SkillNormalizer(config_path=SKILLS_PATH)
-
-NO_SPLIT_MARKERS = ("ci/cd", "qa/qc", "ui/ux", "r&d")
-SPLIT_RE = re.compile(r"\s*(?:/|,|\||&)\s*")
-
-SENIORITY_TERMS = {
-    "intern",
-    "fresher",
-    "junior",
-    "mid",
-    "middle",
-    "senior",
-    "lead",
-    "principal",
-    "entry",
-    "entry level",
-    "executive",
-}
-WORK_LOCATION_TERMS = {
-    "on site",
-    "onsite",
-    "remote",
-    "hybrid",
-    "full time",
-    "part time",
-    "contract",
-    "freelance",
-    "internship",
-}
-NOISE_EXACT = {
-    "hieu lifecycle",
-    "co kinh nghiem deploy",
-    "chu dong hoc hoi",
-}
-NOISE_PREFIXES = (
-    "co kinh nghiem",
-    "kinh nghiem",
-    "hieu ",
-    "chu dong",
-    "uu tien",
-    "tinh than",
-    "san sang",
-    "giao tiep",
-    "can than",
-)
-
-
-def split_skill_terms(value: Any) -> List[str]:
-    text = clean_text(value)
-    if not text:
-        return []
-    lower = text.lower()
-    if any(marker in lower for marker in NO_SPLIT_MARKERS):
-        return [text]
-    if "backup" in lower and "restore" in lower:
-        return [text]
-    parts = [p.strip() for p in SPLIT_RE.split(text) if p.strip()]
-    return parts or [text]
-
-
-def is_noise_unknown(
-    term: str,
-    *,
-    job_title_norm: str,
-    city_norm: str,
-    work_location_norm: str,
-    seniority_norm: str,
-) -> bool:
-    t = norm_basic(term)
-    if not t:
-        return True
-    if t in NOISE_EXACT:
-        return True
-    if t in SENIORITY_TERMS or t in WORK_LOCATION_TERMS:
-        return True
-    if seniority_norm and t == seniority_norm:
-        return True
-    if work_location_norm and t == work_location_norm:
-        return True
-    if city_norm and t == city_norm:
-        return True
-    if job_title_norm and t == job_title_norm:
-        return True
-    if job_title_norm and t in job_title_norm and len(t.split()) <= 3:
-        return True
-    for prefix in NOISE_PREFIXES:
-        if t.startswith(prefix):
-            return True
-    return False
 
 
 def _get_updated_at(j: dict) -> Any:
@@ -191,7 +102,7 @@ def _extract_skillish_from_line(line: str) -> List[str]:
     line = re.sub(r"^(thành thạo|ưu tiên|yêu cầu|có kinh nghiệm)\s*[:\-]\s*", "", line, flags=re.I)
     line = re.sub(r"(là lợi thế|nice to have|preferred)\b.*$", "", line, flags=re.I)
 
-    parts = split_skill_terms(line)
+    parts = re.split(r"[,/|]+", line)
     out: List[str] = []
     for p in parts:
         p = clean_text(p)
@@ -219,28 +130,12 @@ def extract_job_raw_skills(j: dict) -> List[str]:
     # Handle both snake_case and camelCase
     skills_required = j.get("skills_required") or j.get("skillsRequired") or []
     for s in skills_required:
-        if isinstance(s, dict):
-            nm = clean_text(s.get("skill_name") or s.get("skillName") or s.get("name") or "")
-            for part in split_skill_terms(nm):
-                raw.append(part)
+        if not isinstance(s, dict):
             continue
-        for part in split_skill_terms(s):
-            raw.append(part)
-
-    nice_to_have = j.get("nice_to_have_skills") or j.get("niceToHaveSkills") or []
-    for s in nice_to_have:
-        if isinstance(s, dict):
-            nm = clean_text(s.get("skill_name") or s.get("skillName") or s.get("name") or "")
-            for part in split_skill_terms(nm):
-                raw.append(part)
-            continue
-        for part in split_skill_terms(s):
-            raw.append(part)
-
-    tags = j.get("tags") or []
-    for t in tags:
-        for part in split_skill_terms(t):
-            raw.append(part)
+        # Try multiple field name variations
+        nm = clean_text(s.get("skill_name") or s.get("skillName") or s.get("name") or "")
+        if nm:
+            raw.append(nm)
     for line in _requirements_to_lines(j.get("requirements")):
         raw.extend(_extract_skillish_from_line(line))
     return raw
@@ -253,12 +148,6 @@ def extract_job_facts(j: dict) -> Dict[str, Any]:
     blob_parts: List[str] = []
     blob_parts.append(clean_text(j.get("title")))
     blob_parts.append(clean_text(j.get("description")))
-    tags = j.get("tags") or []
-    if isinstance(tags, list):
-        blob_parts.extend([clean_text(t) for t in tags if clean_text(t)])
-    highlights = j.get("job_highlights") or j.get("jobHighlights") or []
-    if isinstance(highlights, list):
-        blob_parts.extend([clean_text(h) for h in highlights if clean_text(h)])
     for line in _requirements_to_lines(j.get("requirements")):
         blob_parts.append(line)
     detected_ids = skill_norm.detect_in_text("\n".join([x for x in blob_parts if x]))
@@ -281,23 +170,6 @@ def extract_job_facts(j: dict) -> Dict[str, Any]:
 
     work_loc = clean_text(j.get("work_location"))
 
-    job_title_norm = norm_basic(clean_text(j.get("title")))
-    seniority_norm = norm_basic(clean_text(j.get("seniority_level")))
-    work_location_norm = norm_basic(work_loc)
-    city_norm = norm_basic(city)
-
-    filtered_unknown = [
-        u
-        for u in req_unknown_norm
-        if not is_noise_unknown(
-            u,
-            job_title_norm=job_title_norm,
-            city_norm=city_norm,
-            work_location_norm=work_location_norm,
-            seniority_norm=seniority_norm,
-        )
-    ]
-
     return {
         "source_updated_at": _get_updated_at(j) or now_utc(),
         "visibility": "public",
@@ -317,13 +189,13 @@ def extract_job_facts(j: dict) -> Dict[str, Any]:
 
         "job_required_skills_known_display": req_known_display,
         "job_required_skills_known_norm": req_known_norm,
-        "job_required_skills_unknown_norm": filtered_unknown,
+        "job_required_skills_unknown_norm": req_unknown_norm,
 
         "job_critical_skills_display": critical_display,
         "job_critical_skills_norm": sorted(list(set([x for x in critical_norm if x]))),
 
         "job_required_skill_count": len(req_known_norm),
-        "job_unknown_skill_count": len(filtered_unknown),
+        "job_unknown_skill_count": len(req_unknown_norm),
         "job_critical_skill_count": len(set(critical_norm)),
     }
 
@@ -412,14 +284,11 @@ def sync_jobs(limit: Optional[int] = None) -> None:
             "description": 1,
             "requirements": 1,
             "skills_required": 1,
-            "nice_to_have_skills": 1,
             "experience_required": 1,
             "job_type": 1,
             "work_location": 1,
             "seniority_level": 1,
             "location": 1,
-            "tags": 1,
-            "job_highlights": 1,
             "updated_at": 1,
             "updatedAt": 1,
             "created_at": 1,
