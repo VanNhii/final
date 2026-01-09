@@ -14,18 +14,19 @@ const ServicePlan = require('../models/ServicePlan');
 const RecruiterSubscription = require('../models/RecruiterSubscription');
 const { generateSystemReport, sendBulkEmails, cleanupOldData, backupCollections } = require('../utils/adminUtils');
 const { getPaginationParams, buildPaginationResponse, applyPagination, getSearchParams, getDateRangeFilter } = require('../utils/pagination');
+const { syncJobToAI, syncCandidateToAI } = require('../utils/aiSync');
 
 // Helper function to get client IP address safely
 const getClientIP = (req) => {
-  return req.ip || 
-         req.connection?.remoteAddress || 
-         req.socket?.remoteAddress || 
-         req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
-         req.headers['x-real-ip'] ||
-         '127.0.0.1';
+  return req.ip ||
+    req.connection?.remoteAddress ||
+    req.socket?.remoteAddress ||
+    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+    req.headers['x-real-ip'] ||
+    '127.0.0.1';
 };
 
- 
+
 
 // @desc    Get admin dashboard statistics
 // @route   GET /api/admin/dashboard
@@ -70,9 +71,9 @@ exports.getDashboardStats = async (req, res, next) => {
         _id: activity.user_id?._id,
         email: activity.user_id?.email,
         role: activity.user_id?.role,
-        name: activity.user_id?.full_name || 
-              `${activity.user_id?.first_name || ''} ${activity.user_id?.last_name || ''}`.trim() ||
-              activity.user_id?.email
+        name: activity.user_id?.full_name ||
+          `${activity.user_id?.first_name || ''} ${activity.user_id?.last_name || ''}`.trim() ||
+          activity.user_id?.email
       },
       activity_type: activity.activity_type,
       description: activity.description || `Thực hiện hành động: ${activity.activity_type}`,
@@ -84,7 +85,7 @@ exports.getDashboardStats = async (req, res, next) => {
     const currentDate = new Date();
     const lastMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1);
     const previousMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() - 2, 1);
-    
+
     const [currentMonthUsers, lastMonthUsers, currentMonthJobs, lastMonthJobs, currentMonthApplications, lastMonthApplications] = await Promise.all([
       User.countDocuments({ created_at: { $gte: lastMonth } }),
       User.countDocuments({ created_at: { $gte: previousMonth, $lt: lastMonth } }),
@@ -162,12 +163,12 @@ exports.getDashboardStats = async (req, res, next) => {
 exports.getUserGrowthData = async (req, res, next) => {
   try {
     const { timeRange = '7days' } = req.query;
-    
+
     // Parse time range
     const days = timeRange === '7days' ? 7 : timeRange === '30days' ? 30 : timeRange === '90days' ? 90 : 365;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    
+
     // Get user growth data
     const userGrowthData = await User.aggregate([
       {
@@ -193,20 +194,20 @@ exports.getUserGrowthData = async (req, res, next) => {
     const labels = [];
     const candidatesData = [];
     const recruitersData = [];
-    
+
     // Generate date labels
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       labels.push(date.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }));
     }
-    
+
     // Initialize data arrays
     labels.forEach(() => {
       candidatesData.push(0);
       recruitersData.push(0);
     });
-    
+
     // Fill actual data
     userGrowthData.forEach(item => {
       const dateIndex = labels.indexOf(new Date(item._id.date).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }));
@@ -238,11 +239,11 @@ exports.getUserGrowthData = async (req, res, next) => {
 exports.getJobStatistics = async (req, res, next) => {
   try {
     const { timeRange = '7days' } = req.query;
-    
+
     const days = timeRange === '7days' ? 7 : timeRange === '30days' ? 30 : timeRange === '90days' ? 90 : 365;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    
+
     // Get job statistics by category
     const jobStats = await Job.aggregate([
       {
@@ -293,11 +294,11 @@ exports.getJobStatistics = async (req, res, next) => {
 exports.getApplicationStatistics = async (req, res, next) => {
   try {
     const { timeRange = '7days' } = req.query;
-    
+
     const days = timeRange === '7days' ? 7 : timeRange === '30days' ? 30 : timeRange === '90days' ? 90 : 365;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    
+
     const applicationStats = await Application.aggregate([
       {
         $match: {
@@ -322,20 +323,20 @@ exports.getApplicationStatistics = async (req, res, next) => {
     const labels = [];
     const applicationsData = [];
     const acceptedData = [];
-    
+
     // Generate date labels
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
       labels.push(date.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }));
     }
-    
+
     // Initialize data arrays
     labels.forEach(() => {
       applicationsData.push(0);
       acceptedData.push(0);
     });
-    
+
     // Fill actual data
     applicationStats.forEach(item => {
       const dateIndex = labels.indexOf(new Date(item._id.date).toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' }));
@@ -368,7 +369,7 @@ exports.getApplicationStatistics = async (req, res, next) => {
 exports.getRevenueStatistics = async (req, res, next) => {
   try {
     const { timeRange = '7days' } = req.query;
-    
+
     // Determine number of months to show based on timeRange
     let months;
     if (timeRange === '7days' || timeRange === '30days') {
@@ -378,11 +379,11 @@ exports.getRevenueStatistics = async (req, res, next) => {
     } else {
       months = 12; // Show last 12 months for 1 year
     }
-    
+
     const startDate = new Date();
     startDate.setMonth(startDate.getMonth() - months);
     startDate.setDate(1); // Start from beginning of month
-    
+
     const revenueStats = await Payment.aggregate([
       {
         $match: {
@@ -392,7 +393,7 @@ exports.getRevenueStatistics = async (req, res, next) => {
       },
       {
         $group: {
-          _id: { 
+          _id: {
             year: { $year: "$created_at" },
             month: { $month: "$created_at" }
           },
@@ -407,18 +408,18 @@ exports.getRevenueStatistics = async (req, res, next) => {
     // Format data for chart - generate labels for each month
     const labels = [];
     const values = [];
-    
-    const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 
-                        'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
-    
+
+    const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
+      'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12'];
+
     for (let i = months - 1; i >= 0; i--) {
       const date = new Date();
       date.setMonth(date.getMonth() - i);
       const year = date.getFullYear();
       const month = date.getMonth() + 1; // getMonth() is 0-indexed
-      
+
       labels.push(monthNames[month - 1]);
-      
+
       // Find revenue for this month
       const monthRevenue = revenueStats.find(
         item => item._id.year === year && item._id.month === month
@@ -453,7 +454,7 @@ exports.getSystemStatus = async (req, res, next) => {
     // Mock system health checks (in real app, you'd check actual services)
     const systemStatus = {
       overall: 'healthy',
-      database: 'healthy', 
+      database: 'healthy',
       storage: userCount > 1000 ? 'warning' : 'healthy',
       email: 'healthy',
       payment: 'healthy',
@@ -534,10 +535,10 @@ exports.getMaintenanceTasks = async (req, res, next) => {
 exports.runMaintenanceTask = async (req, res, next) => {
   try {
     const { id } = req.params;
-    
+
     // Mock running a maintenance task
     // In real app, you'd execute the actual task
-    
+
     res.status(200).json({
       success: true,
       message: `Maintenance task ${id} started successfully`
@@ -568,7 +569,7 @@ exports.enableMaintenanceMode = async (req, res, next) => {
 exports.exportAnalyticsReport = async (req, res, next) => {
   try {
     const { timeRange, format } = req.body;
-    
+
     // In real app, you'd generate actual report file
     // For now, just return success message
     res.status(200).json({
@@ -603,7 +604,7 @@ exports.scheduleMaintenanceTask = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { scheduledTime, recurring } = req.body;
-    
+
     // In real app, you'd schedule the task using cron or task scheduler
     res.status(200).json({
       success: true,
@@ -629,7 +630,7 @@ exports.getUsers = async (req, res, next) => {
     const { role, status } = req.query;
 
     console.log('Search Filters:', searchFilters);
-    
+
     const query = { ...searchFilters };
 
     // Filter by role
@@ -649,7 +650,7 @@ exports.getUsers = async (req, res, next) => {
 
     const users = await applyPagination(usersQuery, page, limit, skip);
     const totalUsers = await User.countDocuments(query);
-    
+
     // Get overall stats (not filtered)
     const [totalAll, totalCandidates, totalRecruiters, totalInactive, totalAdmins] = await Promise.all([
       User.countDocuments(),
@@ -779,7 +780,7 @@ exports.getUserActivities = async (req, res, next) => {
     const { page, limit, skip } = getPaginationParams(req);
     const dateFilters = getDateRangeFilter(req);
     const { user_id, activity_type } = req.query;
-    
+
     const query = { ...dateFilters };
     if (user_id) query.user_id = user_id;
     if (activity_type) query.activity_type = activity_type;
@@ -830,7 +831,7 @@ exports.getSystemHealth = async (req, res, next) => {
 
     // Check for any critical issues
     const criticalIssues = [];
-    
+
     if (health.metrics.pendingReports > 50) {
       criticalIssues.push('High number of pending reports');
     }
@@ -861,7 +862,7 @@ exports.updateUserStatus = async (req, res, next) => {
     const { status, reason } = req.body; // status: 'approved', 'rejected', 'suspended'
     console.log('Updating user status:', req.ip);
     const user = await User.findById(req.params.id);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -881,10 +882,10 @@ exports.updateUserStatus = async (req, res, next) => {
     // Log activity with better description
     const actionDescriptions = {
       'approved': 'Phê duyệt tài khoản',
-      'rejected': 'Từ chối tài khoản', 
+      'rejected': 'Từ chối tài khoản',
       'suspended': 'Tạm khóa tài khoản'
     };
-    
+
     await UserActivity.create({
       user_id: req.user.id,
       activity_type: 'admin_action',
@@ -916,6 +917,14 @@ exports.updateUserStatus = async (req, res, next) => {
       message: `User account ${status} successfully`,
       data: user
     });
+
+    // Start AI Sync if it's a candidate
+    if (user.role === 'candidate') {
+      const candidateProfile = await Candidate.findOne({ user_id: user._id });
+      if (candidateProfile) {
+        syncCandidateToAI(candidateProfile._id.toString());
+      }
+    }
   } catch (error) {
     next(error);
   }
@@ -929,7 +938,7 @@ exports.getJobs = async (req, res, next) => {
     const { page, limit, skip } = getPaginationParams(req);
     const searchFilters = getSearchParams(req);
     const { status } = req.query;
-    
+
     const query = { ...searchFilters };
 
     // Filter by status
@@ -983,7 +992,7 @@ exports.getJobs = async (req, res, next) => {
 exports.updateJobStatus = async (req, res, next) => {
   try {
     const { status, reason } = req.body; // status: 'approved', 'rejected', 'suspended'
-    
+
     // Use findByIdAndUpdate to avoid full document validation
     // This prevents validation errors on legacy data with invalid enum values
     const job = await Job.findByIdAndUpdate(
@@ -996,7 +1005,7 @@ exports.updateJobStatus = async (req, res, next) => {
       },
       { new: true, runValidators: false }
     ).populate('recruiter_id');
-    
+
     if (!job) {
       return res.status(404).json({
         success: false,
@@ -1020,6 +1029,9 @@ exports.updateJobStatus = async (req, res, next) => {
       message: `Job ${status} successfully`,
       data: job
     });
+
+    // Start AI Sync
+    syncJobToAI(job._id.toString());
   } catch (error) {
     next(error);
   }
@@ -1032,7 +1044,7 @@ exports.getReports = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     const { status, priority } = req.query;
-    
+
     const query = {};
     if (status) query.status = status;
     if (priority) query.priority = priority;
@@ -1055,9 +1067,9 @@ exports.getReports = async (req, res, next) => {
 exports.resolveReport = async (req, res, next) => {
   try {
     const { resolution_action, admin_notes } = req.body;
-    
+
     const report = await Report.findById(req.params.id);
-    
+
     if (!report) {
       return res.status(404).json({
         success: false,
@@ -1101,7 +1113,7 @@ exports.getPayments = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     const { status, payment_method } = req.query;
-    
+
     const query = {};
     if (status) query.payment_status = status;
     if (payment_method) query.payment_method = payment_method;
@@ -1130,7 +1142,7 @@ exports.getPayments = async (req, res, next) => {
     // Map payments to handle null recruiter_id with fallback data
     const payments = rawPayments.map(payment => {
       const paymentObj = payment.toObject();
-      
+
       // Handle null recruiter_id
       if (!paymentObj.recruiter_id) {
         paymentObj.recruiter_id = {
@@ -1298,7 +1310,7 @@ exports.deleteEmailTemplate = async (req, res, next) => {
 exports.broadcastNotification = async (req, res, next) => {
   try {
     const { title, message, notification_type, target_role, priority } = req.body;
-    
+
     // Get target users
     const query = target_role ? { role: target_role } : {};
     const users = await User.find(query).select('_id');
@@ -1334,24 +1346,24 @@ exports.broadcastNotification = async (req, res, next) => {
 exports.getSystemAnalytics = async (req, res, next) => {
   try {
     const { timeRange = '30days' } = req.query;
-    
+
     // Parse time range
     const days = timeRange === '7days' ? 7 : timeRange === '30days' ? 30 : timeRange === '90days' ? 90 : 365;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
-    
+
     const previousStartDate = new Date();
     previousStartDate.setDate(previousStartDate.getDate() - (days * 2));
 
     // === Calculate Key Metrics ===
-    
+
     // User growth calculation
     const [currentPeriodUsers, previousPeriodUsers] = await Promise.all([
       User.countDocuments({ created_at: { $gte: startDate } }),
       User.countDocuments({ created_at: { $gte: previousStartDate, $lt: startDate } })
     ]);
-    
-    const userGrowthPercent = previousPeriodUsers > 0 
+
+    const userGrowthPercent = previousPeriodUsers > 0
       ? ((currentPeriodUsers - previousPeriodUsers) / previousPeriodUsers * 100).toFixed(1)
       : currentPeriodUsers > 0 ? 100 : 0;
 
@@ -1361,22 +1373,22 @@ exports.getSystemAnalytics = async (req, res, next) => {
     // Application rate calculation
     const totalJobs = await Job.countDocuments({ status: 'approved', is_active: true });
     const totalApplications = await Application.countDocuments({ created_at: { $gte: startDate } });
-    const applicationRate = totalJobs > 0 
+    const applicationRate = totalJobs > 0
       ? ((totalApplications / totalJobs) * 100).toFixed(1)
       : 0;
 
     // Monthly revenue (last 30 days)
     const revenueResult = await Payment.aggregate([
-      { 
-        $match: { 
+      {
+        $match: {
           payment_status: 'completed',
           created_at: { $gte: startDate }
-        } 
+        }
       },
       { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
-    const monthlyRevenue = revenueResult[0]?.total 
-      ? Math.round(revenueResult[0].total / 1000000) 
+    const monthlyRevenue = revenueResult[0]?.total
+      ? Math.round(revenueResult[0].total / 1000000)
       : 0;
 
     // === User Distribution ===
@@ -1388,7 +1400,7 @@ exports.getSystemAnalytics = async (req, res, next) => {
         }
       }
     ]);
-    
+
     const userDistribution = {
       candidates: userDistributionData.find(u => u._id === 'candidate')?.count || 0,
       recruiters: userDistributionData.find(u => u._id === 'recruiter')?.count || 0,
@@ -1408,7 +1420,7 @@ exports.getSystemAnalytics = async (req, res, next) => {
       { $sort: { count: -1 } },
       { $limit: 5 }
     ]);
-    
+
     const maxSkillCount = topSkillsData[0]?.count || 1;
     const topSkills = topSkillsData.map(item => ({
       skill: item._id,
@@ -1428,7 +1440,7 @@ exports.getSystemAnalytics = async (req, res, next) => {
       { $sort: { count: -1 } },
       { $limit: 5 }
     ]);
-    
+
     const maxLocationCount = topLocationsData[0]?.count || 1;
     const topLocations = topLocationsData.map(item => ({
       location: item._id || 'Khác',
@@ -1462,7 +1474,7 @@ exports.getSystemAnalytics = async (req, res, next) => {
       },
       { $sort: { count: -1 } }
     ]);
-    
+
     const maxSalaryCount = salaryRangesData[0]?.count || 1;
     const salaryRanges = salaryRangesData.map(item => ({
       range: item._id,
@@ -1478,15 +1490,15 @@ exports.getSystemAnalytics = async (req, res, next) => {
         newJobsCount,
         applicationRate: parseFloat(applicationRate),
         monthlyRevenue,
-        
+
         // User distribution for pie chart
         userDistribution,
-        
+
         // Summary stats for lists
         topSkills,
         topLocations,
         salaryRanges,
-        
+
         // Period info
         period: `${days} days`
       }
@@ -1525,7 +1537,7 @@ exports.exportUsers = async (req, res, next) => {
 
       res.setHeader('Content-Type', 'text/csv');
       res.setHeader('Content-Disposition', 'attachment; filename=users.csv');
-      
+
       // Simple CSV conversion (in production, use a proper CSV library)
       const csvContent = [
         Object.keys(csv[0]).join(','),
@@ -1552,7 +1564,7 @@ exports.getServicePlans = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     const { is_active, plan_type } = req.query;
-    
+
     const query = {};
     if (is_active !== undefined) query.is_active = is_active === 'true';
     if (plan_type) query.plan_type = plan_type;
@@ -1582,7 +1594,7 @@ exports.getServicePlans = async (req, res, next) => {
 exports.createServicePlan = async (req, res, next) => {
   try {
     const plan = await ServicePlan.create(req.body);
-    
+
     res.status(201).json({
       success: true,
       message: 'Service plan created successfully',
@@ -1697,7 +1709,7 @@ exports.getSubscriptions = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     const { payment_status, plan_type, search } = req.query;
-    
+
     const query = {};
     if (payment_status) query.payment_status = payment_status;
     if (plan_type) query.plan_type = plan_type;
@@ -1709,7 +1721,7 @@ exports.getSubscriptions = async (req, res, next) => {
           { email: { $regex: search, $options: 'i' } },
         ]
       }).select('_id');
-      
+
       const recruiters = await Recruiter.find({
         $or: [
           { company_name: { $regex: search, $options: 'i' } },
@@ -1742,7 +1754,7 @@ exports.getSubscriptions = async (req, res, next) => {
     // Map subscriptions to handle null recruiter_id with fallback data
     const subscriptions = rawSubscriptions.map(subscription => {
       const subObj = subscription.toObject();
-      
+
       // Handle null recruiter_id
       if (!subObj.recruiter_id) {
         subObj.recruiter_id = {
@@ -1803,7 +1815,7 @@ exports.getSubscriptions = async (req, res, next) => {
 exports.updateSubscriptionStatus = async (req, res, next) => {
   try {
     const { payment_status, admin_notes } = req.body;
-    
+
     const subscription = await RecruiterSubscription.findById(req.params.id)
       .populate('recruiter_id');
 
@@ -1816,7 +1828,7 @@ exports.updateSubscriptionStatus = async (req, res, next) => {
 
     subscription.payment_status = payment_status;
     if (admin_notes) subscription.admin_notes = admin_notes;
-    
+
     await subscription.save();
 
     // Send notification to recruiter
@@ -1850,11 +1862,11 @@ exports.getSubscriptionStats = async (req, res, next) => {
       RecruiterSubscription.countDocuments({ payment_status: 'paid' }),
       RecruiterSubscription.countDocuments({ payment_status: 'pending' }),
       RecruiterSubscription.countDocuments({ payment_status: 'failed' }),
-      RecruiterSubscription.countDocuments({ 
+      RecruiterSubscription.countDocuments({
         payment_status: 'paid',
         end_date: { $gt: new Date() }
       }),
-      RecruiterSubscription.countDocuments({ 
+      RecruiterSubscription.countDocuments({
         payment_status: 'paid',
         end_date: { $lt: new Date() }
       })
@@ -1889,9 +1901,9 @@ exports.getSubscriptionStats = async (req, res, next) => {
         $group: {
           _id: '$plan_type',
           count: { $sum: 1 },
-          revenue: { 
-            $sum: { 
-              $cond: [{ $eq: ['$payment_status', 'paid'] }, '$price', 0] 
+          revenue: {
+            $sum: {
+              $cond: [{ $eq: ['$payment_status', 'paid'] }, '$price', 0]
             }
           }
         }
@@ -1924,7 +1936,7 @@ exports.getSubscriptionStats = async (req, res, next) => {
 exports.getSettings = async (req, res, next) => {
   try {
     let settings = await SystemSetting.getAllSettings();
-    
+
     // If no settings exist, initialize with defaults
     if (Object.keys(settings).length === 0) {
       await SystemSetting.initializeDefaults(req.user.id);
@@ -2072,7 +2084,7 @@ exports.getNotifications = async (req, res, next) => {
   try {
     const { page, limit, skip } = getPaginationParams(req);
     const { notification_type, is_read, priority } = req.query;
-    
+
     const query = {};
     if (notification_type) query.notification_type = notification_type;
     if (is_read !== undefined) query.is_read = is_read === 'true';
@@ -2142,9 +2154,9 @@ exports.updateNotification = async (req, res, next) => {
       target: req.body.target,
       status: req.body.status
     };
-    
+
     // Remove undefined fields
-    Object.keys(updateData).forEach(key => 
+    Object.keys(updateData).forEach(key =>
       updateData[key] === undefined && delete updateData[key]
     );
 
@@ -2229,7 +2241,7 @@ exports.sendNotification = async (req, res, next) => {
 exports.resetSettings = async (req, res, next) => {
   try {
     const { section } = req.params;
-    
+
     // Default settings for each section
     const defaultSettings = {
       general: {

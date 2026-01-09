@@ -13,19 +13,19 @@ from flask_cors import CORS
 
 from .facts_layer import clean_text, norm_basic
 from .llm_service import LLMService
-from .rag_service import RAGService
+from .rag_service import RAGService, _to_oid
 from .database import get_database
 from .conversation_state import (
+    extract_prefs_llm,
+    extract_prefs_rule,
+    match_suggestion_index,
+    merge_prefs,
+    parse_pick_index,
     route_candidate_intent,
     route_recruiter_intent,
-    parse_pick_index,
-    match_suggestion_index,
-    parse_city_from_text,
-    extract_prefs_rule,
-    extract_prefs_llm,
-    merge_prefs,
     rewrite_followup_query,
 )
+from .prompts.career_coach import assemble_roadmap_prompt
 from .chat_prefs import ChatPrefs
 from .notifications import build_daily_digest
 from .auth import protect, authorize
@@ -182,20 +182,19 @@ def build_suggest_jobs_message(sugs: List[dict], source: str) -> str:
 
 def build_empathy_prompt() -> str:
     return """
-Bạn là trợ lý hướng nghiệp giàu kinh nghiệm, nói tiếng Việt tự nhiên, thấu cảm, thẳng thắn.
-
-QUY TẮC CỨNG
-- Chỉ dùng dữ liệu trong FACTS/CONTEXT/CHAT HISTORY. Không được bịa số liệu.
-- Nếu thông tin không có trong context: trả lời: "Xin lỗi, thông tin này không có trong mô tả công việc, bạn nên hỏi trực tiếp HR khi phỏng vấn".
-- Nếu thiếu dữ liệu, nói rõ "mình chưa có dữ liệu này" và hỏi thêm 1 câu.
-- Câu hỏi nhạy cảm (lương, số ứng viên, môi trường): trả lời có điều kiện + hỏi làm rõ.
-- Ưu tiên hành động cụ thể (actionable).
+Mô tả nhiệm vụ:
+- Bạn là một Career Assistant thông thái, thấu cảm.
+- Khi trả lời, hãy xưng hô 'mình' và 'bạn'.
+- Luôn bám sát dữ liệu (FIT score, matched/missing skills, job_meta, cand_meta) được cung cấp.
+- Nếu FIT score > 0 hoặc có matched skills: BẠN PHẢI PHÂN TÍCH. Không được nói "mình chưa có dữ liệu".
+- Nếu thực sự KHÔNG có bất kỳ thông tin nào (cả meta và context đều trống rỗng): trả lời: "Mình chưa có đủ dữ liệu để phân tích phần này, bạn nên hỏi trực tiếp HR nhé".
+- Tránh dùng các câu từ chối máy móc.
 
 CẤU TRÚC TRẢ LỜI (3-6 dòng)
 1) Thấu cảm ngắn
 2) Trả lời thẳng theo FACTS
 3) 2-3 gợi ý hành động
-4) Nếu thiếu dữ liệu: hỏi thêm
+4) Nếu thiếu dữ liệu: hỏi thêm 1 câu làm rõ
 
 OUTPUT: tiếng Việt có dấu, ngắn gọn.
 """.strip()
@@ -241,7 +240,7 @@ def build_empathy_message(
 User question: {question}
 
 === FIT (deterministic) ===
-{json.dumps(fit, ensure_ascii=False)}
+{json.dumps(rag_service._jsonable(fit), ensure_ascii=False)}
 
 === JOB FACTS ===
 Title: {job_meta.get("job_title")}
@@ -259,7 +258,7 @@ Primary skills: {cand_meta.get("primary_skills_known_display") or []}
 Skills known: {cand_meta.get("skills_known_display") or []}
 
 === EXTRA CONTEXT ===
-{json.dumps(extra or {}, ensure_ascii=False)}
+{json.dumps(rag_service._jsonable(extra or {}), ensure_ascii=False)}
 
 === CHAT HISTORY (latest 6) ===
 {chr(10).join([f"{(m.get('role') or '').upper()}: {m.get('content')}" for m in (history or [])[-6:] if m.get('content')])}
@@ -272,9 +271,11 @@ Output JSON: {{"message": "string"}}
         answer = llm_service.ask_json(prompt, question, schema_hint=schema_hint, max_repair=1)
     except Exception:
         return fallback
+
     if isinstance(answer, dict):
         msg = clean_text(answer.get("message") or "")
-        if msg:
+        # If the polished response is generic, placeholder "string", or a refusal, return the grounded fallback
+        if msg and not is_generic_fit_reply(msg):
             return msg
     return fallback
 
@@ -334,9 +335,22 @@ def is_generic_fit_reply(text: str) -> bool:
     t = norm_basic(text)
     if not t:
         return True
-    if len(t) <= 10:
+    if len(t) <= 12 or t == "string":
         return True
-    return t in {"khong phu hop", "khong phu hop hoan toan", "not fit"}
+    
+    # Common refusal phrases and placeholders (accent-stripped)
+    refusals = {
+        "khong phu hop", "khong phu hop hoan toan", "not fit",
+        "thong tin nay khong co",
+        "hoi truc tiep hr",
+        "chua co du lieu",
+        "chua co thong tin",
+        "output json", "message string",
+    }
+    for r in refusals:
+        if r in t:
+            return True
+    return False
 
 
 def build_fit_message(question: str, fit: dict, job_title: str = "") -> str:
@@ -628,7 +642,20 @@ def handle_candidate_job_search(
     rag_service.append_message(session_id, "user", question)
     last_query = clean_text(payload.get("last_query"))
 
-    query = question if context_breaker else rewrite_followup_query(question, state=payload, last_query=last_query, kind="candidate")
+    # Clean query: strip common filler words
+    q_clean = re.sub(r"^(tim|goi y|search|find|recommend|tim job|tim viec lam|tim viec)\b", "", question, flags=re.I).strip()
+    if not q_clean:
+        q_clean = question
+    
+    # Expand 2-letter acronyms if they match known skills (e.g. "BA" -> "Business Analyst")
+    if len(q_clean) <= 3:
+        norm_q = rag_service.skill_norm.normalize_one_norm(q_clean, allow_unknown=False)
+        if norm_q:
+            expanded = rag_service.skill_norm.display_from_norm(norm_q)
+            if expanded.lower() != q_clean.lower():
+                q_clean = expanded
+
+    query = q_clean if context_breaker else rewrite_followup_query(q_clean, state=payload, last_query=last_query, kind="candidate")
 
     sugs = dedupe_jobs(rag_service.suggest_jobs(query, limit=int(os.getenv("MAX_SUGGESTIONS", "10")), prefs=prefs), max_n=10)
 
@@ -707,7 +734,7 @@ def handle_candidate_job_fit(
     job_meta = rag_service.get_job_meta(job_id)
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not job_meta or not cand_meta:
-        return api_err("Job/Candidate facts not found. Run ingest scripts.", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job hoặc Ứng viên này. Vui lòng ingest dữ liệu trước.", 400)
 
     if is_non_it_role_question(question):
         msg = "Mình hiện chỉ hỗ trợ tư vấn các job IT/tech trên hệ thống. Các ngành ngoài IT (giáo viên, y tế...) mình chưa hỗ trợ."
@@ -794,20 +821,9 @@ def handle_candidate_job_fit(
     except Exception as exc:
         logger.error("Candidate job fit LLM failed: %s", exc, exc_info=True)
 
-    msg = clean_text(answer.get("conclusion") or "")
-    if not msg or is_generic_fit_reply(msg):
-        msg = build_fit_message(question, fit, clean_text(job_meta.get("job_title") or ""))
-
-    # final polish (empathy) but grounded
-    msg = build_empathy_message(
-        question=question,
-        job_meta=job_meta,
-        cand_meta=cand_meta,
-        fit=fit,
-        extra={"current_state": current_state, "preface": preface},
-        history=history,
-        fallback=msg,
-    )
+    # Use deterministic fit message directly - skip LLM polishing to avoid refusals
+    msg = build_fit_message(question, fit, clean_text(job_meta.get("job_title") or ""))
+    
     if preface:
         msg = f"{clean_text(preface)}\n{msg}".strip()
 
@@ -834,13 +850,13 @@ def handle_candidate_roadmap(candidate_id: str, question: str, session_id: str, 
     job_meta = rag_service.get_job_meta(job_id)
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not job_meta or not cand_meta:
-        return api_err("Job/Candidate facts not found.", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job hoặc Ứng viên này. Vui lòng ingest dữ liệu trước.", 400)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
     
     # NEW LOGIC: Use LLM for structured roadmap
     if is_llm_enabled():
-        prompt = rag_service.build_roadmap_prompt(job_meta, cand_meta, fit)
+        prompt = assemble_roadmap_prompt(job_meta, cand_meta, fit, duration_days=14)
         schema_hint = """{
           "title": "string",
           "overview": "string",
@@ -894,13 +910,25 @@ def handle_cover_letter_gen(candidate_id: str, question: str, session_id: str, j
     job_meta = rag_service.get_job_meta(job_id)
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not job_meta or not cand_meta:
-        return api_err("Data not found.", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job hoặc Ứng viên này.", 400)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
 
     if is_llm_enabled():
-        prompt = rag_service.build_cover_letter_prompt(job_meta, cand_meta, fit)
-        # We expect raw markdown text here, not JSON
+        # Build prompt inline
+        matched_skills = ", ".join((fit.get("matched") or [])[:5])
+        job_title = clean_text(job_meta.get("job_title") or "")
+        company = clean_text(job_meta.get("job_company_name") or "công ty")
+        
+        prompt = f"""Viết thư giới thiệu xin việc chuyên nghiệp, thân thiện cho:
+- Vị trí: {job_title}
+- Công ty: {company}
+- Tên ứng viên: {clean_text(cand_meta.get("full_name") or "Ứng viên")}
+- Kỹ năng nổi bật: {matched_skills}
+- Kinh nghiệm: {cand_meta.get("years_exp", 0)} năm
+
+Viết ngắn gọn (200-250 từ), thể hiện sự nhiệt huyết và phù hợp với vị trí."""
+
         try:
             letter_content = llm_service.ask(prompt, question)
             msg = f"✉️ **Thư xin việc gợi ý cho bạn:**\n\n{letter_content}"
@@ -933,13 +961,27 @@ def handle_cv_critique(candidate_id: str, question: str, session_id: str, job_id
     job_meta = rag_service.get_job_meta(job_id)
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not job_meta or not cand_meta:
-        return api_err("Data not found.", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job hoặc Ứng viên này.", 400)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
     answer = {}
 
     if is_llm_enabled():
-        prompt = rag_service.build_cv_critique_prompt(job_meta, cand_meta, fit)
+        # Build prompt inline
+        job_title = clean_text(job_meta.get("job_title") or "")
+        matched = ", ".join((fit.get("matched") or [])[:10])
+        missing = ", ".join((fit.get("missing") or [])[:10])
+        missing_critical = ", ".join((fit.get("missing_critical") or [])[:5])
+        
+        prompt = f"""Phân tích và đánh giá CV cho vị trí {job_title}:
+
+**Kỹ năng khớp**: {matched if matched else "Không có"}
+**Thiếu kỹ năng**: {missing if missing else "Không có"}
+**Thiếu kỹ năng bắt buộc**: {missing_critical if missing_critical else "Không có"}
+**Kinh nghiệm**: {cand_meta.get("years_exp", 0)} năm
+
+Đánh giá ATS score (1-10), điểm mạnh/yếu, và gợi ý cải thiện CV."""
+
         schema_hint = """{
             "ats_score": 0.0,
             "summary": "string",
@@ -974,7 +1016,8 @@ def handle_cv_critique(candidate_id: str, question: str, session_id: str, job_id
 def handle_candidate_interview(candidate_id: str, question: str, session_id: str, job_id: Optional[str] = None):
     sess = rag_service.get_session(session_id) or {}
     payload = sess.get("payload") or {}
-    history = rag_service.get_history_messages(candidate_id, "candidate", limit=20) or (sess.get("messages") or [])
+    # Get chat history from RAGService (centralized)
+    history = rag_service.get_history_messages(candidate_id, "candidate", limit=20)
 
     job_id = clean_text(job_id or payload.get("selected_job_id"))
     if not job_id:
@@ -986,7 +1029,7 @@ def handle_candidate_interview(candidate_id: str, question: str, session_id: str
     job_meta = rag_service.get_job_meta(job_id)
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not job_meta or not cand_meta:
-        return api_err("Job/Candidate facts not found. Run ingest scripts.", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job hoặc Ứng viên này. Vui lòng ingest dữ liệu trước.", 400)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
     current_state = build_candidate_current_state(candidate_id=candidate_id, session_id=session_id, payload=payload, fit=fit, job_meta=job_meta)
@@ -1000,16 +1043,22 @@ def handle_candidate_interview(candidate_id: str, question: str, session_id: str
     rag_service.update_session_payload(session_id, {"last_action": "INTERVIEW"})
     rag_service.append_message(session_id, "user", question)
 
-    base_msg = "Ok, mình sẽ đóng vai nhà tuyển dụng. Bạn trả lời lần lượt từng câu; bạn có thể gửi câu trả lời để mình góp ý."
-    msg = build_empathy_message(
-        question=question,
-        job_meta=job_meta,
-        cand_meta=cand_meta,
-        fit=fit,
-        extra={"interview": pack, "current_state": current_state},
-        history=history,
-        fallback=base_msg,
-    )
+    # Build message with actual interview questions
+    questions = pack.get("questions") or []
+    msg_lines = ["📋 **Các câu hỏi phỏng  vấn cho vị trí " + clean_text(job_meta.get("job_title") or "") + "**\n"]
+    
+    for q in questions[:8]:  # Show first 8 questions
+        qno = q.get("no", 0)
+        focus = clean_text(q.get("focus") or "")
+        question_text = clean_text(q.get("question") or "")
+        if qno < 100:  # Technical questions
+            msg_lines.append(f"**Q{qno}. [{focus}]**: {question_text}")
+        else:  # Behavioral questions
+            msg_lines.append(f"\n**Behavioral**: {question_text}")
+    
+    msg_lines.append("\n💡 Gợi ý: Chuẩn bị câu trả lời theo mô hình STAR (Situation-Task-Action-Result).")
+    msg = "\n".join(msg_lines)
+    
     rag_service.append_message(session_id, "assistant", msg)
 
     return api_ok(
@@ -1033,7 +1082,7 @@ def handle_candidate_competition(candidate_id: str, question: str, session_id: s
     job_meta = rag_service.get_job_meta(job_id)
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not job_meta or not cand_meta:
-        return api_err("Job/Candidate facts not found. Run ingest scripts.", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job hoặc Ứng viên này. Vui lòng ingest dữ liệu trước.", 400)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="candidate")
     current_state = build_candidate_current_state(candidate_id=candidate_id, session_id=session_id, payload=payload, fit=fit, job_meta=job_meta)
@@ -1080,16 +1129,8 @@ def handle_candidate_competition(candidate_id: str, question: str, session_id: s
             else:
                 lines.append("Hiện chưa đủ dữ liệu để ước tính top %.")
 
+    # Use deterministic message directly
     msg = "\n".join(lines)
-    msg = build_empathy_message(
-        question=question,
-        job_meta=job_meta,
-        cand_meta=cand_meta,
-        fit=fit,
-        extra={"applications_count": total, "sampled_applicants": len(applied_ids), "candidate_percentile": percentile, "in_applicant_pool": in_pool, "current_state": current_state},
-        history=history,
-        fallback=msg,
-    )
 
     rag_service.update_session_payload(session_id, {"last_action": "COMPETITION"})
     rag_service.append_message(session_id, "user", question)
@@ -1122,19 +1163,19 @@ def candidate_unknown_fallback(candidate_id: str, question: str, session_id: str
 
 Bạn là Expert Agent cho ứng viên IT, xử lý câu hỏi không rõ (UNKNOWN).
 - Nếu câu hỏi ngoài IT hoàn toàn: nói giới hạn hỗ trợ + gợi ý câu hỏi phù hợp.
-- Nếu thiếu dữ liệu: dùng câu "Xin lỗi, thông tin này không có trong mô tả công việc, bạn nên hỏi trực tiếp HR khi phỏng vấn" và hỏi thêm 1 câu làm rõ.
+- Nếu thiếu dữ liệu: nói mình chưa có đủ thông tin và hỏi thêm 1 câu làm rõ.
 - Chỉ dùng FACTS/CONTEXT/CHAT HISTORY. Không được bịa.
 
 User question: {question}
 
 === CURRENT STATE ===
-{json.dumps(current_state, ensure_ascii=False)}
+{json.dumps(rag_service._jsonable(current_state), ensure_ascii=False)}
 
 === JOB FACTS ===
-{json.dumps(job_meta or {}, ensure_ascii=False)}
+{json.dumps(rag_service._jsonable(job_meta or {}), ensure_ascii=False)}
 
 === CANDIDATE FACTS ===
-{json.dumps(cand_meta or {}, ensure_ascii=False)}
+{json.dumps(rag_service._jsonable(cand_meta or {}), ensure_ascii=False)}
 
 === CHAT HISTORY (latest 6) ===
 {chr(10).join([f"{(m.get('role') or '').upper()}: {m.get('content')}" for m in (history or [])[-6:] if m.get('content')])}
@@ -1149,7 +1190,8 @@ Output JSON: {{"message": "string"}}
         return fallback
     if isinstance(answer, dict):
         msg = clean_text(answer.get("message") or "")
-        if msg:
+        # If generic/placeholder, return fallback
+        if msg and not is_generic_fit_reply(msg):
             return msg
     return fallback
 
@@ -1438,7 +1480,7 @@ def handle_recruiter_compare(job_id: str, question: str, session_id: str, payloa
 
     job_meta = rag_service.get_job_meta(job_id)
     if not job_meta:
-        return api_err("Job facts not found. Run ingest_jobs.py", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job này. Vui lòng ingest dữ liệu trước.", 400)
 
     # 1. Fetch metadata
     candidates_meta = rag_service.get_candidates_meta_batch(ids)
@@ -1522,7 +1564,7 @@ def handle_recruiter_interview_prep(job_id: str, question: str, session_id: str,
     candidate_id = pick_single_candidate_id(question, payload)
     job_meta = rag_service.get_job_meta(job_id) or {}
     if not job_meta:
-        return api_err("Job facts not found. Run ingest_jobs.py", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job này. Vui lòng ingest dữ liệu trước.", 400)
 
     # Generic pack if no candidate selected
     if not candidate_id:
@@ -1542,7 +1584,7 @@ def handle_recruiter_interview_prep(job_id: str, question: str, session_id: str,
     # Candidate specific
     cand_meta = rag_service.get_candidate_meta(candidate_id)
     if not cand_meta:
-        return api_err("Candidate facts not found. Run ingest_candidates.py", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho ứng viên này. Vui lòng ingest dữ liệu trước.", 400)
 
     fit = rag_service.compute_fit(job_meta, cand_meta, audience="recruiter")
     
@@ -1618,11 +1660,12 @@ def handle_recruiter_rank(
 
     payload = (sess or {}).get("payload") or {}
     recruiter_user_id = clean_text(payload.get("recruiter_user_id") or "")
-    history = rag_service.get_history_messages(recruiter_user_id, "recruiter", limit=20) or (sess or {}).get("messages") or []
+    # Get chat history from RAGService (centralized)
+    history = rag_service.get_history_messages(recruiter_user_id, "recruiter", limit=20)
 
     job_meta = rag_service.get_job_meta(job_id)
     if not job_meta:
-        return api_err("Job facts not found. Run ingest_jobs.py", 404)
+        return api_err("Không tìm thấy dữ liệu phân tích cho Job này. Vui lòng ingest dữ liệu trước.", 400)
 
     cand_map = rag_service.get_candidates_meta_batch(candidate_ids)
 
@@ -1871,7 +1914,16 @@ def candidate_chat_general():
 
     # light intents
     if it == "GREETING":
-        msg = friendly_menu()
+        # Friendly greeting + menu
+        greetings = [
+            "Chào bạn 👋",
+            "Xin chào! 👋",
+            "Hello bạn 👋",
+            "Chào bạn, rất vui được hỗ trợ! 👋"
+        ]
+        import random
+        greeting = random.choice(greetings)
+        msg = f"{greeting}\n\n{friendly_menu()}"
         rag_service.append_message(session_id, "user", question)
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "candidate_general", "result": {"intent": intent}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
@@ -1953,7 +2005,69 @@ def candidate_chat_general():
         return api_ok({"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
 
     if it == "JOB_FIT":
-        # allow preface from intent (when selecting by number + asking fit)
+        # Check if this is a direct job name query (e.g., "Senior Developer fit score")
+        auto_search_job = intent.get("auto_search_job")
+        if auto_search_job:
+            # Auto-search for the job with multiple strategies
+            # IMPORTANT: Clear session location filters for explicit job name search
+            # to prevent previous "Đà Nẵng" filter from blocking "Nha Trang" results.
+            prefs = ChatPrefs.from_payload(payload)
+            prefs.city = ""
+            prefs.city_norm = ""
+            prefs.work_location_norm = ""
+            
+            # Strategy 1: Search with full title
+            job_sugs = dedupe_jobs(
+                rag_service.suggest_jobs(auto_search_job, limit=5, prefs=prefs),
+                max_n=5
+            )
+            
+            # Strategy 2: If no results, try removing location in parentheses
+            if not job_sugs and "(" in auto_search_job:
+                title_only = auto_search_job.split("(")[0].strip()
+                job_sugs = dedupe_jobs(
+                    rag_service.suggest_jobs(title_only, limit=5, prefs=prefs),
+                    max_n=5
+                )
+            
+            # Strategy 3: If still no results, try just the core job role
+            if not job_sugs:
+                # Extract key words (Developer, Engineer, Designer, etc.)
+                core_words = []
+                for word in auto_search_job.split():
+                    if word.lower() in ["developer", "engineer", "designer", "analyst", "manager", "lead", "senior", "junior", "executive", "entry", "mid"]:
+                        core_words.append(word)
+                if core_words:
+                    core_query = " ".join(core_words)
+                    job_sugs = dedupe_jobs(
+                        rag_service.suggest_jobs(core_query, limit=5, prefs=prefs),
+                        max_n=5
+                    )
+            
+            if job_sugs:
+                # Auto-select the best matching job
+                best_job = job_sugs[0]
+                job_id = str(best_job.get("_id") or best_job.get("job_id"))
+                job_title = clean_text(best_job.get("job_title") or "")
+                
+                # Update session with selected job
+                rag_service.update_session_payload(session_id, {
+                    "selected_job_id": job_id,
+                    "selected_job_title": job_title,
+                    "last_job_suggestions": job_sugs
+                })
+                
+                # Show fit immediately with preface
+                preface = f"Mình tìm thấy job **{job_title}**. Đây là mức độ phù hợp:"
+                return handle_candidate_job_fit(candidate_id, question, session_id, job_id=job_id, preface=preface)
+            else:
+                # No job found - suggest manual search
+                msg = f"Mình không tìm thấy job này trong hệ thống. Bạn thử: 'tìm job Desktop Developer' nhé."
+                rag_service.append_message(session_id, "user", question)
+                rag_service.append_message(session_id, "assistant", msg)
+                return api_ok({"view": "candidate_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
+        
+        # Standard fit analysis with already selected job
         preface = clean_text(intent.get("preface") or "")
         return handle_candidate_job_fit(candidate_id, question, session_id, preface=preface)
 
@@ -1966,8 +2080,6 @@ def candidate_chat_general():
     if it == "CV_CRITIQUE":
         return handle_cv_critique(candidate_id, question, session_id)
 
-    if it == "ROADMAP":
-        return handle_candidate_roadmap(candidate_id, question, session_id)
 
     if it == "INTERVIEW":
         return handle_candidate_interview(candidate_id, question, session_id)
@@ -2075,6 +2187,7 @@ def recruiter_chat_general():
     question = clean_text(body.get("question"))
     session_id = clean_text(body.get("session_id"))
     ttl_minutes = int(body.get("ttl_minutes") or 45)
+    selection_preface = ""
 
     if not question:
         return api_err("question required", 400)
@@ -2142,13 +2255,56 @@ def recruiter_chat_general():
     if it == "SCREEN_CANDIDATES":
         return handle_recruiter_screen(question, session_id, payload)
 
+    # ==================== SELECT_JOB INTENT (like candidate flow) ====================
+    if it == "SELECT_JOB":
+        last_jobs = payload.get("last_recruiter_jobs") or []
+        pick_index = intent.get("pick_index")
+        
+        if pick_index is None:
+            msg = "Bạn muốn chọn job số mấy? Gõ: 'chọn 1' đến 'chọn N' (N là số job trong danh sách)."
+            rag_service.append_message(session_id, "user", question)
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_ok({"view": "recruiter_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
+        
+        if not last_jobs:
+            msg = "Bạn chưa có danh sách job. Hãy hỏi mình về các job của bạn trước."
+            rag_service.append_message(session_id, "user", question)
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_ok({"view": "recruiter_general", "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
+        
+        if pick_index < 0 or pick_index >= len(last_jobs):
+            msg = f"Số bạn chọn không hợp lệ (bạn chọn {pick_index+1}, nhưng chỉ có {len(last_jobs)} job). Hãy chọn lại (vd: 'chọn 1' hoặc '1')."
+            rag_service.append_message(session_id, "user", question)
+            rag_service.append_message(session_id, "assistant", msg)
+            return api_err(msg, 400)
+        
+        selected = last_jobs[pick_index]
+        job_id = clean_text(selected.get("job_id"))
+        selected_title = clean_text(selected.get("title") or selected.get("job_title") or "")
+        city = clean_text(selected.get("city") or "")
+        
+        logger.info(f"Recruiter selected job: job_id={job_id}, title={selected_title}, pick_index={pick_index}")
+        
+        rag_service.update_session_payload(session_id, {"job_id": job_id, "candidate_ids": [], "selected_job_title": selected_title})
+        
+        msg = f"Ok, bạn đang quan tâm đến job **{selected_title}**" + (f" tại {city}." if city else ".") + "\n\nBạn muốn mình làm gì tiếp theo?\n- Xếp hạng ứng viên\n- So sánh top 1 vs top 2\n- Gợi ý câu hỏi phỏng vấn"
+        rag_service.append_message(session_id, "user", question)
+        rag_service.append_message(session_id, "assistant", msg)
+        return api_ok({
+            "view": "recruiter_job_selected",
+            "result": {"job_id": job_id, "job_title": selected_title},
+            "state": session_to_state(rag_service.get_session(session_id) or {}, 20)
+        }, message=msg)
+    # ==================== END SELECT_JOB INTENT ====================
+
     # Job selection flow: if no job_id, list recruiter's jobs
     job_id = clean_text(payload.get("job_id") or job_id)
 
     if not job_id:
         recruiter = get_recruiter_record_by_user(recruiter_user_id) if recruiter_user_id else None
         if not recruiter:
-            return api_err("Không tìm thấy hồ sơ nhà tuyển dụng.", 404)
+            logger.warning(f"Recruiter record not found for user_id: {recruiter_user_id}")
+            return api_err("Không tìm thấy hồ sơ nhà tuyển dụng. Hãy kiểm tra lại tài khoản.", 400)
 
         job_limit = int(os.getenv("RECRUITER_JOB_LIMIT", "20"))
         jobs = list_recruiter_jobs(recruiter.get("_id"), limit=job_limit)
@@ -2163,41 +2319,16 @@ def recruiter_chat_general():
         rag_service.append_message(session_id, "assistant", msg)
         return api_ok({"view": "recruiter_jobs", "result": {"jobs": jobs}, "state": session_to_state(rag_service.get_session(session_id) or {}, 20)}, message=msg)
 
-    # if user picked a job by number from last_recruiter_jobs
-    last_jobs = payload.get("last_recruiter_jobs") or []
-    pick = parse_pick_index(question)
-    if pick is None:
-        pick = match_suggestion_index(question, last_jobs)
-
-    selection_preface = ""
-    if pick is not None and last_jobs:
-        if pick < 0 or pick >= len(last_jobs):
-            msg = "Số bạn chọn không hợp lệ. Hãy chọn lại (vd: 'chọn 1')."
-            rag_service.append_message(session_id, "user", question)
-            rag_service.append_message(session_id, "assistant", msg)
-            return api_err(msg, 400)
-        
-        selected = last_jobs[pick]
-        job_id = clean_text(selected.get("job_id"))
-        selected_title = clean_text(selected.get("title") or selected.get("job_title") or "")
-        city = clean_text(selected.get("city") or "")
-        selection_preface = f"Ok, bạn đang quan tâm đến job **{selected_title}**" + (f" tại {city}." if city else ".")
-        
-        rag_service.update_session_payload(session_id, {"job_id": job_id, "candidate_ids": [], "selected_job_title": selected_title})
-        
-        # Return confirmation message instead of continuing to ranking
-        msg = f"{selection_preface}\n\nBạn muốn mình làm gì tiếp theo?\n- Xếp hạng ứng viên\n- So sánh top 1 vs top 2\n- Gợi ý câu hỏi phỏng vấn"
-        rag_service.append_message(session_id, "user", question)
-        rag_service.append_message(session_id, "assistant", msg)
-        return api_ok({
-            "view": "recruiter_job_selected",
-            "result": {"job_id": job_id, "job_title": selected_title},
-            "state": session_to_state(rag_service.get_session(session_id) or {}, 20)
-        }, message=msg)
-
+    # Get candidate IDs from applications if needed
     candidate_ids = payload.get("candidate_ids") or candidate_ids
     if use_applications:
-        applied_ids = rag_service.get_applied_candidate_ids(job_id, statuses=application_statuses)
+        # Query applications collection directly
+        db = get_database()
+        query = {"job_id": _to_oid(job_id)}
+        if application_statuses:
+            query["status"] = {"$in": application_statuses}
+        apps = list(db.get_collection("applications").find(query).limit(500))
+        applied_ids = [str(a.get("candidate_id")) for a in apps if a.get("candidate_id")]
         if applied_ids:
             candidate_ids = applied_ids
 
@@ -2274,3 +2405,50 @@ def stream_chat():
         yield "data: [DONE]\n\n"
 
     return Response(gen(), mimetype="text/event-stream")
+
+@app.post("/api/ai/sync/job")
+def sync_job_route():
+    data = request.json or {}
+    job_id = data.get("job_id")
+    if not job_id:
+        return api_err("Missing job_id", 400)
+    
+    db = get_database()
+    job = db.get_collection("jobs").find_one({"_id": _to_oid(job_id)})
+    
+    if not job:
+        # If not found in source, remove from RAG
+        deleted = rag_service.delete_job_chunks(job_id)
+        return api_ok({"deleted_chunks": deleted}, message="Job not found in source, removed from RAG.")
+    
+    try:
+        n = rag_service.index_job(job)
+        return api_ok({"upserted_chunks": n}, message=f"Job {job_id} synced successfully.")
+    except Exception as e:
+        logger.error(f"Sync job {job_id} failed: {e}", exc_info=True)
+        return api_err(f"Sync failed: {str(e)}", 500)
+
+@app.post("/api/ai/sync/candidate")
+def sync_candidate_route():
+    data = request.json or {}
+    candidate_id = data.get("candidate_id")
+    if not candidate_id:
+        return api_err("Missing candidate_id", 400)
+    
+    db = get_database()
+    cand = db.get_collection("candidates").find_one({"_id": _to_oid(candidate_id)})
+    
+    if not cand:
+        # If not found in source, remove from RAG
+        deleted = rag_service.delete_candidate_chunks(candidate_id)
+        return api_ok({"deleted_chunks": deleted}, message="Candidate not found in source, removed from RAG.")
+    
+    try:
+        n = rag_service.index_candidate(cand)
+        return api_ok({"upserted_chunks": n}, message=f"Candidate {candidate_id} synced successfully.")
+    except Exception as e:
+        logger.error(f"Sync candidate {candidate_id} failed: {e}", exc_info=True)
+        return api_err(f"Sync failed: {str(e)}", 500)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=os.getenv("DEBUG", "False").lower() == "true")

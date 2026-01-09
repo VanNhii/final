@@ -154,40 +154,63 @@ def fuzzy_role_match(text: str) -> bool:
 
 def parse_pick_index(text: str) -> Optional[int]:
     """
-    "chon 1", "so 2", "job 3", "cong viec 4" => 0-based index
+    Parse selection index from user input. Supports:
+    - Bare numbers: "1", "2", "10" => 0-based index
+    - With keywords: "chon 1", "chọn 1", "so 2", "job 3", "pick 5"
+    - Ordinals: "dau tien", "thu nhat", "first", etc.
+    
+    Returns 0-based index or None if no valid selection found.
     """
     t = norm_basic(text)
+    
+    # Priority 1: Check for bare number (most common case)
+    # Match "1", "2", "10" but not "14 ngày" or "5 năm"
+    bare_num = re.fullmatch(r"\s*([0-9]{1,2})\s*", t)
+    if bare_num:
+        try:
+            idx = int(bare_num.group(1))
+            if idx > 0:
+                return idx - 1
+        except Exception:
+            pass
+    
+    # Priority 2: Check for keyword + number patterns
+    # "chon 1", "chọn 1" (normalized to "chon"), "so 2", "pick 3"
     m = re.search(r"\b(chon|so|pick)\s*([0-9]{1,2})\b", t)
     if not m:
+        # "job 1", "viec 2", "cong viec 3", "cv 4"
         m = re.search(r"\b(job|viec|cong viec|cv)\s*([0-9]{1,2})\b", t)
-    if not m:
-        ordinal_map = {
-            "dau tien": 0,
-            "thu nhat": 0,
-            "thu hai": 1,
-            "thu ba": 2,
-            "thu tu": 3,
-            "thu nam": 4,
-            "thu sau": 5,
-            "thu bay": 6,
-            "thu tam": 7,
-            "thu chin": 8,
-            "thu muoi": 9,
-            "first": 0,
-            "second": 1,
-            "third": 2,
-        }
-        for key, idx in ordinal_map.items():
-            if re.search(rf"\b{re.escape(key)}\b", t):
-                return idx
-        return None
-    try:
-        idx = int(m.group(2))
-        if idx <= 0:
-            return None
-        return idx - 1
-    except Exception:
-        return None
+    
+    if m:
+        try:
+            idx = int(m.group(2))
+            if idx > 0:
+                return idx - 1
+        except Exception:
+            pass
+    
+    # Priority 3: Check ordinal words
+    ordinal_map = {
+        "dau tien": 0,
+        "thu nhat": 0,
+        "thu hai": 1,
+        "thu ba": 2,
+        "thu tu": 3,
+        "thu nam": 4,
+        "thu sau": 5,
+        "thu bay": 6,
+        "thu tam": 7,
+        "thu chin": 8,
+        "thu muoi": 9,
+        "first": 0,
+        "second": 1,
+        "third": 2,
+    }
+    for key, idx in ordinal_map.items():
+        if re.search(rf"\b{re.escape(key)}\b", t):
+            return idx
+    
+    return None
 
 def parse_city_from_text(text: str) -> Optional[str]:
     t = clean_text(text)
@@ -409,6 +432,8 @@ CAND_INTENTS = [
     "ROADMAP",
     "INTERVIEW",
     "COMPETITION",
+    "COVER_LETTER",
+    "CV_CRITIQUE",
     "SELECT_JOB",
     "CHANGE_JOB",
     "RESET",
@@ -418,6 +443,7 @@ RECR_INTENTS = [
     "GREETING",
     "THANKS",
     "GOODBYE",
+    "SELECT_JOB",
     "RANK_CANDIDATES",
     "ASK_ABOUT_CANDIDATE",
     "CHANGE_POOL",
@@ -439,6 +465,7 @@ def route_candidate_intent(question: str, payload: dict, llm: Optional[LLMServic
     """
     q = clean_text(question or "")
     t = q.lower().strip()
+    t_norm = norm_basic(q)
     payload = payload or {}
 
     if is_reset(q):
@@ -493,12 +520,71 @@ def route_candidate_intent(question: str, payload: dict, llm: Optional[LLMServic
         return {"intent": "SELECT_JOB", "confidence": 0.85, "auto_pick": True}
 
     selected_id = payload.get("selected_job_id")
+    
+    # Check if query contains job title + fit keywords (e.g., "Senior Developer fit score")
+    # This allows direct job name → fit without selection step
+    fit_keywords = ["phu hop", "fit", "phan tram", "%", "match"]
+    has_fit_keyword = any(kw in t_norm for kw in fit_keywords)
+    
+    if has_fit_keyword and not selected_id:
+        # Extract potential job title from query
+        # Use simple and reliable string replacements
+        job_query = q.lower()
+        
+        # Remove question starters
+        for prefix in ["tôi có ", "mình có ", "bạn có ", "có "]:
+            if job_query.startswith(prefix):
+                job_query = job_query[len(prefix):]
+                break
+        
+        # Remove fit-related words and punctuation
+        remove_words = [
+            "phù hợp", "phu hop", "fit", "match", "với", "voi", "không", "khong", "ko", 
+            "bao nhiêu", "bao nhieu", "phần trăm", "phan tram", "%", "score", "mức độ", "muc do", "điểm", "diem",
+            "cho tôi biết", "cho minh biet", "của mình", "cua minh"
+        ]
+        job_query = q.lower()
+        for word in remove_words:
+            job_query = job_query.replace(word, " ")
+        
+        # Clean start
+        for prefix in ["tôi có ", "mình có ", "bạn có ", "có ", "với "]:
+            if job_query.strip().startswith(prefix):
+                job_query = job_query.strip()[len(prefix):]
+                break
+        
+        # Clean up whitespace
+        job_query = " ".join(job_query.split())
+        if job_query.endswith("không") or job_query.endswith("khong") or job_query.endswith("?"):
+            job_query = re.sub(r"(không|khong|\?)$", "", job_query).strip()
+        
+        # Try to find the cleaned phrase in original input to preserve case
+        q_lower = q.lower()
+        for word in remove_words + ["tôi có", "mình có", "bạn có", "có"]:
+            q_lower = q_lower.replace(word, " ")
+        q_cleaned = " ".join(q_lower.split())
+        
+        # Find this phrase in original query to get proper casing
+        if q_cleaned in q.lower():
+            start_idx = q.lower().index(q_cleaned)
+            job_query = q[start_idx:start_idx + len(q_cleaned)].strip()
+        
+        # If remaining text looks like a job title
+        job_keywords = ["developer", "engineer", "designer", "analyst", "manager", "lead", "senior", "junior", "mid", "entry", "executive", "specialist"]
+        if len(job_query) > 8 and any(word in job_query.lower() for word in job_keywords):
+            return {"intent": "JOB_FIT", "confidence": 0.95, "auto_search_job": job_query}
+    
     if selected_id:
         if COVER_LETTER_PAT.search(t):
             return {"intent": "COVER_LETTER", "confidence": 0.99}
         if CV_CRITIQUE_PAT.search(t):
             return {"intent": "CV_CRITIQUE", "confidence": 0.99}
-        if COMPETE_PAT.search(t) and re.search(r"\b(ung vien|ung tuyen|ho so|nop)\b", t):
+
+        # Strong fit indicators (priority over competition)
+        if re.search(r"\b(phu hop|phu hop bao nhieu|phan tram|%|fit|hop khong|match)\b", t_norm):
+            return {"intent": "JOB_FIT", "confidence": 0.99}
+
+        if COMPETE_PAT.search(t) or COMPETE_PAT.search(t_norm):
             return {"intent": "COMPETITION", "confidence": 0.9}
         if payload.get("last_action") == "ROADMAP" and is_confirm(q):
             return {"intent": "ROADMAP", "confidence": 0.9}
@@ -623,6 +709,32 @@ def route_recruiter_intent(question: str, payload: dict, llm: Optional[LLMServic
         return {"intent": "OUTREACH", "confidence": 0.95}
     if SCHEDULE_PAT.search(t):
         return {"intent": "SCHEDULE_INTERVIEW", "confidence": 0.95}
+
+    # ==================== JOB SELECTION LOGIC (like candidate flow) ====================
+    # Check if recruiter is trying to select a job from last_recruiter_jobs list
+    last_jobs = payload.get("last_recruiter_jobs") or []
+    
+    if last_jobs and not payload.get("job_id"):
+        # Try parse_pick_index first
+        pick = parse_pick_index(q)
+        if pick is not None:
+            return {"intent": "SELECT_JOB", "confidence": 1.0, "pick_index": pick}
+        
+        # Try bare number pattern (fallback if parse_pick_index somehow missed it)
+        num_only = re.fullmatch(r"\s*(\d{1,2})\s*", t)
+        if num_only:
+            try:
+                idx = int(num_only.group(1))
+                if idx > 0 and idx <= len(last_jobs):
+                    return {"intent": "SELECT_JOB", "confidence": 0.95, "pick_index": idx - 1}
+            except Exception:
+                pass
+        
+        # Try text matching (match job title or company name)
+        pick_by_text = match_suggestion_index(q, last_jobs)
+        if pick_by_text is not None:
+            return {"intent": "SELECT_JOB", "confidence": 0.9, "pick_index": pick_by_text}
+    # ==================== END JOB SELECTION LOGIC ====================
 
     # if recruiter has job_id + candidate_ids in payload, default to ranking/compare
     job_id = payload.get("job_id")

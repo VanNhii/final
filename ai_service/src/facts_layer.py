@@ -144,6 +144,7 @@ class SkillNormalizer:
         self._id_to_display: Dict[str, str] = {}
         self._syn_to_id: Dict[str, str] = {}
         self._critical: List[str] = []
+        self._skill_implies: Dict[str, List[str]] = {}  # skill -> implied parent skills
         self._syn_patterns: Dict[str, List[re.Pattern]] = {}
         self._negative_keywords: Dict[str, List[str]] = {}
         self._load()
@@ -263,6 +264,18 @@ class SkillNormalizer:
                 self._negative_keywords[sid] = [norm_basic(x) for x in phrases if norm_basic(x)]
 
         self._critical = [norm_basic(x) for x in (data.get("critical_skills") or []) if norm_basic(x)]
+        
+        # Load SKILL_IMPLIES (WinForms -> .NET, React -> JavaScript, etc.)
+        skill_implies_raw = data.get("SKILL_IMPLIES") or {}
+        if isinstance(skill_implies_raw, dict):
+            for skill, implied_list in skill_implies_raw.items():
+                skill_norm = norm_basic(skill)
+                if not skill_norm or not isinstance(implied_list, list):
+                    continue
+                implied_norms = [norm_basic(imp) for imp in implied_list if norm_basic(imp)]
+                if implied_norms:
+                    self._skill_implies[skill_norm] = implied_norms
+        
         self._loaded = True
 
     def detect_in_text(self, text: str) -> List[str]:
@@ -314,6 +327,17 @@ class SkillNormalizer:
                 found.add(sid)
 
         return sorted(found)
+
+    def expand_with_implies(self, skill_norms: List[str]) -> List[str]:
+        """
+        Expand normalized skills to include implied parent technologies.
+        Example: ["winforms", "wpf"] -> ["winforms", "wpf", "net", "csharp"]
+        """
+        expanded = set(skill_norms)
+        for skill_norm in skill_norms:
+            if skill_norm in self._skill_implies:
+                expanded.update(self._skill_implies[skill_norm])
+        return sorted(list(expanded))
 
     def normalize_one_norm(self, s: str, allow_unknown: bool = True) -> Optional[str]:
         ns = norm_basic(s)

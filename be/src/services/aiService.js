@@ -1,9 +1,9 @@
 const axios = require('axios');
 
 // Configuration
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5000';
 const AI_RECOMMEND_URL = process.env.AI_RECOMMEND_URL || 'http://localhost:8001';
-const AI_SERVICE_TIMEOUT = parseInt(process.env.AI_SERVICE_TIMEOUT) || 30000;
+const AI_SERVICE_TIMEOUT = parseInt(process.env.AI_SERVICE_TIMEOUT) || 180000;
 
 // Create axios instance with default config
 const aiClient = axios.create({
@@ -248,7 +248,7 @@ const checkHealth = async () => {
     return response.data;
   } catch (error) {
     console.warn('AI Recommend Service health check failed:', error.message);
-    
+
     // Fallback to Chat Service
     try {
       const response = await aiClient.get('/health');
@@ -266,23 +266,23 @@ module.exports = {
   getCandidateRecommendations,
   getSimilarJobs,
   getPersonalizedJobFeed,
-  
+
   // Feedback and interaction
   submitRecommendationFeedback,
   trackRecommendationInteraction,
-  
+
   // Model management
   triggerModelTraining,
   getModelStatus,
   getAIStatistics,
-  
+
   // User preferences
   updateUserPreferences,
   getUserPreferences,
-  
+
   // Health check
   checkHealth,
-  
+
   // For direct access if needed
   aiClient,
   aiRecommendClient

@@ -1,5 +1,5 @@
 import { logout } from "@/store/slices/authSlice";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, NavLink, useNavigate } from "react-router";
 import { toast } from "react-toastify";
@@ -7,9 +7,14 @@ import { toast } from "react-toastify";
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const { isAuthenticated, user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setImgError(false);
+  }, [user?.avatar_url, user?.avatar]);
 
   const handleLogout = () => {
     dispatch(logout());
@@ -74,9 +79,18 @@ const Header = () => {
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                 >
-                  <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-semibold">
-                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                  </div>
+                  {(user?.avatar_url || user?.avatar) && !imgError ? (
+                    <img
+                      src={user.avatar_url || user.avatar}
+                      alt={user.name}
+                      className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                      onError={() => setImgError(true)}
+                    />
+                  ) : (
+                    <div className="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white font-semibold">
+                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    </div>
+                  )}
                   <span>{user?.name}</span>
                   <svg
                     className="w-4 h-4"

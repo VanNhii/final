@@ -130,7 +130,7 @@ class LLMService:
             },
         }
 
-        r = requests.post(self.url, json=payload, timeout=120)
+        r = requests.post(self.url, json=payload, timeout=180)
         r.raise_for_status()
         data = r.json()
         # Ollama returns {"message":{"role":"assistant","content":"..."}}
@@ -159,7 +159,7 @@ class LLMService:
             },
         }
 
-        with requests.post(self.url, json=payload, stream=True, timeout=120) as r:
+        with requests.post(self.url, json=payload, stream=True, timeout=180) as r:
             r.raise_for_status()
             for line in r.iter_lines(decode_unicode=True):
                 if not line:

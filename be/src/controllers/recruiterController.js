@@ -1,4 +1,5 @@
 const Recruiter = require('../models/Recruiter');
+const User = require('../models/User');
 const Job = require('../models/Job');
 const Application = require('../models/Application');
 const Interview = require('../models/Interview');
@@ -196,6 +197,15 @@ exports.updateRecruiterProfile = async (req, res, next) => {
       new: true,
       runValidators: true
     }).populate('user_id', 'first_name last_name email phone avatar_url');
+
+    // If avatar_url is provided, update User model as well
+    if (req.body.avatar_url) {
+      await User.findByIdAndUpdate(req.user.id, {
+        avatar_url: req.body.avatar_url
+      });
+      // Refresh user_id population to reflect changes in response
+      await recruiter.populate('user_id', 'first_name last_name email phone avatar_url');
+    }
 
     res.status(200).json({
       success: true,

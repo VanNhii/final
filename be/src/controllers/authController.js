@@ -573,6 +573,7 @@ const sendTokenResponse = (user, statusCode, res, message = 'Thành công') => {
         email: user.email,
         role: user.role,
         full_name: user.full_name,
+        avatar_url: user.avatar_url,
         is_verified: user.is_verified,
         is_active: user.is_active
       }

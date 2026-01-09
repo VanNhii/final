@@ -9,7 +9,7 @@ from datetime import timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from bson import ObjectId
-from pymongo import MongoClient
+from pymongo import MongoClient, UpdateOne
 from pymongo.collection import Collection
 
 from sentence_transformers import SentenceTransformer
@@ -25,6 +25,9 @@ from .facts_layer import (
     clean_text,
     now_utc,
     norm_basic,
+    chunk_words,
+    normalize_city,
+    normalize_work_location,
 )
 from .chat_prefs import ChatPrefs
 
@@ -71,6 +74,7 @@ class RAGService:
 
         self.rag_col: Collection = self.db[rag_col_name]
         self.sessions_col: Collection = self.db[sess_col_name]
+        self.history_col: Collection = self.db["chat_history_sessions"]
 
         self.vector_index = os.getenv("VECTOR_INDEX_NAME", "vector_index")
         self.text_index = os.getenv("TEXT_INDEX_NAME", "rag_text_index")
@@ -142,10 +146,60 @@ class RAGService:
     def append_message(self, session_id: str, role: str, content: str) -> None:
         if not session_id:
             return
+        # 1. Update active session
+        now = now_utc()
+        cleaned = clean_text(content)
+        msg_obj = {"at": now, "role": role, "content": cleaned}
+        
         self.sessions_col.update_one(
             {"session_id": session_id},
-            {"$push": {"messages": {"at": now_utc(), "role": role, "content": clean_text(content)}}},
+            {"$push": {"messages": msg_obj}},
         )
+
+        # 2. Sync to long-term history (chat_history_sessions)
+        sess = self.get_session(session_id)
+        if sess:
+            payload = sess.get("payload") or {}
+            kind = sess.get("kind")
+            owner_id = ""
+            if kind == "candidate":
+                owner_id = clean_text(payload.get("candidate_id"))
+            elif kind == "recruiter":
+                owner_id = clean_text(payload.get("recruiter_user_id"))
+
+            if owner_id and kind:
+                self.history_col.update_one(
+                    {"session_id": session_id, "owner_id": owner_id, "kind": kind},
+                    {
+                        "$push": {"messages": msg_obj},
+                        "$inc": {"message_count": 1},
+                        "$set": {"updated_at": now},
+                        "$setOnInsert": {"created_at": now}
+                    },
+                    upsert=True
+                )
+
+    def get_history_messages(self, owner_id: str, kind: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Retrieve messages across sessions for a specific owner/kind.
+        Returns chronological list of message objects.
+        """
+        if not owner_id:
+            return []
+        
+        # We query the latest sessions for this owner
+        cursor = self.history_col.find(
+            {"owner_id": owner_id, "kind": kind}
+        ).sort("updated_at", -1).limit(5) # Look at last 5 sessions
+        
+        all_msgs = []
+        for doc in cursor:
+            msgs = doc.get("messages") or []
+            all_msgs.extend(msgs)
+            
+        # Re-sort all collected messages by time and take the tail
+        all_msgs.sort(key=lambda x: x.get("at") or x.get("timestamp") or 0)
+        return all_msgs[-limit:]
 
     # ----------------------------
     # Embedder / scoring
@@ -230,6 +284,16 @@ class RAGService:
             if cid:
                 out[str(cid)] = md
         return out
+
+    def get_applied_candidate_ids(self, job_id: str, limit: int = 200) -> List[str]:
+        oid = _to_oid(job_id)
+        job_id_clean = clean_text(job_id)
+        query = {"job_id": {"$in": [oid, job_id_clean]}} if oid else {"job_id": job_id_clean}
+        try:
+            docs = self.db["applications"].find(query, {"candidate_id": 1}).limit(limit)
+            return _dedupe_keep_order([str(d.get("candidate_id")) for d in docs if d.get("candidate_id")])
+        except Exception:
+            return []
 
     # ----------------------------
     # Retrieval: Atlas Vector + Atlas Search
@@ -393,7 +457,11 @@ class RAGService:
         req = set([norm_basic(x) for x in (job_meta.get("job_required_skills_known_norm") or []) if norm_basic(x)])
         crit = set([norm_basic(x) for x in (job_meta.get("job_critical_skills_norm") or []) if norm_basic(x)])
 
-        cand = set([norm_basic(x) for x in (cand_meta.get("skills_known_norm") or []) if norm_basic(x)])
+        # Get candidate skills and EXPAND with implied parents (WinForms -> .NET)
+        cand_raw = [norm_basic(x) for x in (cand_meta.get("skills_known_norm") or []) if norm_basic(x)]
+        cand_expanded = self.skill_norm.expand_with_implies(cand_raw)
+        cand = set(cand_expanded)
+        
         cand_primary = set([norm_basic(x) for x in (cand_meta.get("primary_skills_known_norm") or []) if norm_basic(x)])
 
         matched = sorted(list(req & cand))
@@ -501,38 +569,96 @@ class RAGService:
         """Generate a deterministic interview simulation pack (questions + scoring rubric)."""
         title = clean_text(job_title) or "vị trí đã chọn"
 
-        focus = [clean_text(x) for x in (missing_critical + missing) if clean_text(x)]
+        # Deduplicate and prioritize critical skills
+        focus_raw = [clean_text(x) for x in (missing_critical + missing) if clean_text(x)]
+        # Remove duplicates while preserving order
+        seen = set()
+        focus = []
+        for skill in focus_raw:
+            skill_norm = clean_text(skill).lower()
+            if skill_norm not in seen:
+                seen.add(skill_norm)
+                focus.append(skill)
+        
         if not focus:
             focus = ["System design", "Behavioral", "Project deep dive"]
+
+        # Soft skills patterns - these need different question types
+        soft_skill_patterns = [
+            "communication", "teamwork", "collaboration", "leadership", "english", 
+            "japanese", "presentation", "negotiation", "time management", "problem solving",
+            "critical thinking", "stakeholder", "active listening", "self-learning",
+            "troubleshooting", "fluency", "language"
+        ]
+        
+        def is_soft_skill(skill: str) -> bool:
+            skill_lower = skill.lower()
+            return any(pattern in skill_lower for pattern in soft_skill_patterns)
 
         questions: List[Dict[str, Any]] = []
         for i, sk in enumerate(focus[:6], start=1):
             low = sk.lower()
+            
+            # Skip soft skills from technical questions - handle separately
+            if is_soft_skill(sk):
+                continue
+                
+            # Technical skill questions
             if "react" in low:
                 q = "Giải thích useEffect dependency array và cách tránh infinite re-render. Cho ví dụ." 
                 rub = ["Giải thích đúng lifecycle", "Nêu được stale closure", "Đưa ra ví dụ code"]
             elif "node" in low or "express" in low or "nest" in low:
                 q = "Thiết kế API login + refresh token: flow, security, storage, rotation?"
                 rub = ["JWT/refresh flow", "Security (XSS/CSRF)", "Error handling + rate limit"]
-            elif "sql" in low:
+            elif "sql" in low or "database" in low:
                 q = "Khi nào nên dùng index? Hãy phân tích một query chậm và cách tối ưu." 
                 rub = ["Explain plan", "Index selectivity", "Tradeoffs write overhead"]
             elif "docker" in low:
                 q = "Multi-stage build là gì? Khi nào dùng? Viết một Dockerfile mẫu." 
                 rub = ["Build vs runtime image", "Layer caching", "ENV/args best practices"]
+            elif ".net" in low or "c#" in low or "csharp" in low:
+                q = "Giải thích async/await trong C#. Khi nào dùng Task vs Thread?"
+                rub = ["Hiểu async pattern", "Blocking vs non-blocking", "Exception handling"]
+            elif "mvvm" in low or "wpf" in low or "winforms" in low:
+                q = "Giải thích MVVM pattern. Làm sao để bind data giữa View và ViewModel?"
+                rub = ["MVVM components", "INotifyPropertyChanged", "Command pattern"]
+            elif "package" in low or "packaging" in low or "installer" in low:
+                q = "Bạn đã triển khai installer cho desktop app chưa? Công cụ gì và gặp khó khăn gì?"
+                rub = ["Deployment tools", "Update mechanism", "Dependencies handling"]
+            elif "performance" in low or "optimization" in low:
+                q = "Mô tả một lần bạn optimize performance của app. Metric nào và cải thiện được bao nhiêu?"
+                rub = ["Profiling tools", "Bottleneck identification", "Measurable results"]
             elif "system" in low or "design" in low:
                 q = f"System design: thiết kế một hệ thống tìm kiếm job (giống {title}) ở mức high-level." 
                 rub = ["Requirements", "Data model", "Scaling + tradeoffs"]
             else:
-                q = f"Bạn đã từng dùng {sk} chưa? Hãy mô tả 1 feature bạn làm có liên quan và các tradeoffs." 
-                rub = ["Context rõ ràng", "Decision reasoning", "Results/metrics"]
+                q = f"Bạn có kinh nghiệm thực tế với {sk} không? Hãy mô tả 1 dự án cụ thể bạn đã làm."
+                rub = ["Context rõ ràng", "Technical challenges",  "Results/impact"]
 
             questions.append({"no": i, "focus": sk, "question": q, "rubric": rub})
 
+        # Behavioral questions - Always include these
         behavioral = [
-            {"no": 100, "focus": "Behavioral", "question": "Kể về một lần bạn gặp bug khó và bạn xử lý thế nào?", "rubric": ["Situation-Task-Action-Result", "Học được gì", "Giao tiếp"]},
-            {"no": 101, "focus": "Behavioral", "question": "Nếu bị deadline gấp nhưng scope lớn, bạn ưu tiên thế nào?", "rubric": ["Prioritization", "Communication", "Risk management"]},
+            {"no": 100, "focus": "Problem Solving", "question": "Kể về một lần bạn gặp bug khó và bạn xử lý thế nào?", "rubric": ["Situation-Task-Action-Result", "Root cause analysis", "Learning outcome"]},
+            {"no": 101, "focus": "Time Management", "question": "Nếu bị deadline gấp nhưng scope lớn, bạn ưu tiên thế nào?", "rubric": ["Prioritization", "Communication with stakeholders", "Risk management"]},
         ]
+        
+        # Add soft skill questions if any soft skills in focus
+        soft_skills_in_focus = [sk for sk in focus[:6] if is_soft_skill(sk)]
+        if "english" in " ".join(soft_skills_in_focus).lower():
+            behavioral.append({
+                "no": 102, 
+                "focus": "English Communication", 
+                "question": "Mô tả một tình huống bạn phải làm việc với client nước ngoài. Bạn xử lý rào cản ngôn ngữ thế nào?",
+                "rubric": ["Communication clarity", "Problem resolution", "Cultural awareness"]
+            })
+        if any(word in " ".join(soft_skills_in_focus).lower() for word in ["teamwork", "collaboration"]):
+            behavioral.append({
+                "no": 103,
+                "focus": "Teamwork",
+                "question": "Kể về một lần bạn phải làm việc với teammate khó tính. Bạn giải quyết conflict như thế nào?",
+                "rubric": ["Conflict resolution", "Empathy", "Team outcome"]
+            })
 
         return {
             "title": title,
@@ -585,6 +711,9 @@ class RAGService:
 
     def suggest_jobs_for_candidate(self, candidate_id: str, limit: int = 10, query_hint: str = "", prefs: Optional[ChatPrefs] = None) -> List[Dict[str, Any]]:
         cand = self.get_candidate_meta(candidate_id) or {}
+        if not cand:
+            return []
+        
         prefs = prefs or ChatPrefs()
         # build query from candidate primary skills + optional user hint
         skills = (cand.get("primary_skills_known_display") or [])[:8]
@@ -597,7 +726,26 @@ class RAGService:
         if city:
             query_parts.append(f"ở {city}")
         q = " ".join([clean_text(x) for x in query_parts if clean_text(x)])
-        return self.suggest_jobs(q, limit=limit, prefs=prefs)
+        
+        # Get initial suggestions from hybrid search
+        raw_suggestions = self.suggest_jobs(q, limit=limit * 3, prefs=prefs)  # Get more candidates
+        
+        # Calculate fit score for each suggestion and sort by fit
+        scored_suggestions = []
+        for job in raw_suggestions:
+            job_id = str(job.get("_id") or job.get("job_id"))
+            job_meta = self.get_job_meta(job_id)
+            if job_meta:
+                fit = self.compute_fit(job_meta, cand, audience="candidate")
+                fit_score = fit.get("score", 0.0)
+                job["_fit_score"] = fit_score
+                # Only include jobs with reasonable fit (>= 15%)
+                if fit_score >= 15.0:
+                    scored_suggestions.append(job)
+        
+        # Sort by fit score (highest first) and return top results
+        scored_suggestions.sort(key=lambda x: x.get("_fit_score", 0.0), reverse=True)
+        return scored_suggestions[:limit]
 
     # ----------------------------
     # Prompt builders (friendly UX + chart-ready)
@@ -611,6 +759,7 @@ class RAGService:
         job_ctx: List[str],
         cand_ctx: List[str],
         history: Optional[List[Dict[str, Any]]] = None,
+        current_state: Optional[Dict[str, Any]] = None,
     ) -> str:
         history = history or []
         history_tail = history[-6:]
@@ -621,9 +770,14 @@ class RAGService:
             if role and content:
                 hist_lines.append(f"{role}: {content}")
 
+        state_info = ""
+        if current_state:
+            state_info = f"=== CURRENT STATE ===\n{json.dumps(current_state, ensure_ascii=False)}\n"
+
         return f"""
-Bạn là trợ lý nghề nghiệp thân thiện, nói tiếng Việt tự nhiên, ngắn gọn nhưng thực tế.
-CHỈ dựa trên FACTS (job_meta, cand_meta, fit, context). Không được bịa.
+Bạn là trợ lý hướng nghiệp (Career Path assistant). Giọng điệu thấu cảm, khích lệ nhưng thẳng thắn.
+CHỈ dựa trên FACTS (job_meta, cand_meta) và CONTEXT (RAG chunks). Không được bịa số liệu.
+Nếu thông tin không có trong context, hãy nói "mình chưa có dữ liệu này".
 
 Mục tiêu: trả lời theo nhu cầu user, giúp họ hiểu:
 - Fit score (%), passed/failed
@@ -633,6 +787,7 @@ Mục tiêu: trả lời theo nhu cầu user, giúp họ hiểu:
 
 User question: {question}
 
+{state_info}
 === FIT (deterministic) ===
 {json.dumps(fit, ensure_ascii=False)}
 
@@ -730,3 +885,218 @@ Output: JSON theo schema được cung cấp.
         if isinstance(x, dict):
             return {k: self._jsonable(v) for k, v in x.items()}
         return x
+
+    # ----------------------------
+    # Real-time Ingestion / Sync Logic (V5 SOTA)
+    # ----------------------------
+    def _requirements_to_lines(self, reqs: Any) -> List[str]:
+        if reqs is None: return []
+        if isinstance(reqs, list): return [clean_text(x) for x in reqs if clean_text(x)]
+        s = clean_text(reqs)
+        if not s: return []
+        return [clean_text(x.lstrip("-• ").strip()) for x in re.split(r"[\n\r]+", s) if clean_text(x)]
+
+    def _extract_skillish_from_line(self, line: str) -> List[str]:
+        line = clean_text(line)
+        if not line: return []
+        line = re.sub(r"^(thành thạo|ưu tiên|yêu cầu|có kinh nghiệm)\s*[:\-]\s*", "", line, flags=re.I)
+        line = re.sub(r"(là lợi thế|nice to have|preferred)\b.*$", "", line, flags=re.I)
+        parts = re.split(r"[,/|]+", line)
+        out = []
+        for p in parts:
+            p = clean_text(p)
+            if not p: continue
+            if len(p) > 30 and " " in p and not re.search(r"(\.net|node\.js|next\.js)", p.lower()): continue
+            out.append(p)
+        return out
+
+    def extract_job_facts(self, j: dict) -> Dict[str, Any]:
+        raw_skills = []
+        skills_req = j.get("skills_required") or j.get("skillsRequired") or []
+        for s in skills_req:
+            if isinstance(s, dict):
+                nm = clean_text(s.get("skill_name") or s.get("skillName") or s.get("name") or "")
+                if nm: raw_skills.append(nm)
+        for line in self._requirements_to_lines(j.get("requirements")):
+            raw_skills.extend(self._extract_skillish_from_line(line))
+
+        blob_parts = [clean_text(j.get("title")), clean_text(j.get("description"))]
+        for line in self._requirements_to_lines(j.get("requirements")):
+            blob_parts.append(line)
+        detected_ids = self.skill_norm.detect_in_text("\n".join([x for x in blob_parts if x]))
+        detected_display = [self.skill_norm.display_from_norm(sid) for sid in detected_ids]
+
+        req_known_display, req_known_norm, req_unknown_norm = self.skill_norm.classify_many_norm(raw_skills + detected_display, dedup=True)
+        critical_display = self.skill_norm.detect_critical(req_known_norm)
+        critical_norm = sorted(list(set([self.skill_norm.normalize_one_norm(x, False) for x in critical_display])))
+        critical_norm = [x.lower() for x in critical_norm if x]
+
+        loc = j.get("location") or {}
+        city = clean_text(loc.get("city"))
+        work_loc = clean_text(j.get("work_location"))
+
+        return {
+            "source_updated_at": j.get("updated_at") or j.get("updatedAt") or j.get("created_at") or now_utc(),
+            "visibility": "public",
+            "job_title": clean_text(j.get("title")),
+            "job_company_name": clean_text(j.get("company_name")),
+            "job_experience_min": (j.get("experience_required") or {}).get("min") if isinstance(j.get("experience_required"), dict) else None,
+            "job_type": clean_text(j.get("job_type")),
+            "job_work_location": work_loc,
+            "job_work_location_norm": normalize_work_location(work_loc),
+            "job_seniority_level": clean_text(j.get("seniority_level")),
+            "job_location_city": city,
+            "job_location_city_norm": normalize_city(city),
+            "job_location_country": clean_text(loc.get("country")),
+            "job_required_skills_known_display": req_known_display,
+            "job_required_skills_known_norm": req_known_norm,
+            "job_required_skills_unknown_norm": req_unknown_norm,
+            "job_critical_skills_display": critical_display,
+            "job_critical_skills_norm": critical_norm,
+            "job_required_skill_count": len(req_known_norm),
+            "job_unknown_skill_count": len(req_unknown_norm),
+            "job_critical_skill_count": len(critical_norm),
+        }
+
+    def build_job_context_text(self, j: dict, facts: Dict[str, Any]) -> str:
+        parts = [f"FACTS SUMMARY:\n- Title: {facts.get('job_title')}\n- Company: {facts.get('job_company_name')}\n- City: {facts.get('job_location_city')}\n- Work location: {facts.get('job_work_location')}\n- Experience min: {facts.get('job_experience_min')}\n- Required skills: {', '.join(facts.get('job_required_skills_known_display') or [])}\n- Critical: {', '.join(facts.get('job_critical_skills_display') or [])}"]
+        desc = clean_text(j.get("description"))
+        if desc: parts.append("DESCRIPTION:\n" + desc[:3000])
+        req_lines = self._requirements_to_lines(j.get("requirements"))
+        if req_lines: parts.append("REQUIREMENTS:\n" + "\n".join([f"- {x}" for x in req_lines])[:2500])
+        return "\n".join([p for p in parts if p])
+
+    def index_job(self, j: dict) -> int:
+        jid = _to_oid(j.get("_id"))
+        if not jid: return 0
+        status = clean_text(j.get("status"))
+        if j.get("is_active") is False or status not in ("approved", "active", "open", "published"):
+            return self.delete_job_chunks(jid)
+        
+        facts = self.extract_job_facts(j)
+        self.delete_job_chunks(jid) # clean old
+        text = self.build_job_context_text(j, facts)
+        chunks = chunk_words(text, 240, 50) or ["Job posting (empty)"]
+        embs = self._get_embedder().encode(chunks, normalize_embeddings=True)
+        docs = []
+        for idx, (t, e) in enumerate(zip(chunks, embs)):
+            docs.append({
+                "_id": f"job::{jid}::{idx}",
+                "text": t,
+                "embedding": e.tolist(),
+                "metadata": {"doc_type": "job", "job_id": jid, "source_id": jid, "chunk_index": idx, **facts},
+                "created_at": now_utc(),
+            })
+        if docs: self.rag_col.insert_many(docs)
+        return len(docs)
+
+    def delete_job_chunks(self, job_id: Any) -> int:
+        jid = _to_oid(job_id)
+        if not jid: return 0
+        res = self.rag_col.delete_many({"metadata.doc_type": "job", "metadata.job_id": jid})
+        return res.deleted_count
+
+    def extract_candidate_facts(self, c: dict) -> Dict[str, Any]:
+        profile_skills = []
+        skills_det = c.get("skills_detailed") or c.get("skillsDetailed") or []
+        primary_raw = []
+        for s in skills_det:
+            if isinstance(s, dict):
+                nm = (s.get("skill_name") or s.get("skillName") or s.get("name") or "").strip()
+                if nm: 
+                    profile_skills.append(nm)
+                    if s.get("is_primary") or s.get("isPrimary"): primary_raw.append(nm)
+        
+        exp_skills = []
+        experience = c.get("experience") or []
+        blob_parts = [clean_text(c.get("bio") or "")]
+        for e in experience:
+            if isinstance(e, dict):
+                blob_parts.extend([clean_text(e.get("position") or ""), clean_text(e.get("company_name") or e.get("companyName") or ""), clean_text(e.get("description") or "")])
+                techs = e.get("technologies") or []
+                if isinstance(techs, list):
+                    for t in techs:
+                        if t: 
+                            exp_skills.append(str(t).strip())
+                            blob_parts.append(str(t).strip())
+
+        detected_ids = self.skill_norm.detect_in_text("\n".join([x for x in blob_parts if x]))
+        raw_det_display = [self.skill_norm.display_from_norm(sid) for sid in detected_ids]
+        all_raw = profile_skills + exp_skills + raw_det_display
+
+        sk_display, sk_norm, sk_unk = self.skill_norm.classify_many_norm(all_raw, dedup=True)
+        exp_display, exp_norm, exp_unk = self.skill_norm.classify_many_norm(exp_skills + raw_det_display, dedup=True)
+        pri_display, pri_norm, pri_unk = self.skill_norm.classify_many_norm(primary_raw, dedup=True)
+
+        y_exp = c.get("experience_years") or c.get("experienceYears")
+        try: y_exp = int(y_exp) if y_exp is not None else None
+        except: y_exp = None
+
+        def _sen(y):
+            if y is None: return None
+            if y < 2: return "junior"
+            if y < 5: return "mid"
+            return "senior"
+
+        city = clean_text(c.get("city") or "")
+        return {
+            "visibility": "private",
+            "city": city,
+            "city_norm": normalize_city(city),
+            "education_level": clean_text(c.get("education_level") or c.get("educationLevel") or ""),
+            "job_status": clean_text(c.get("job_status") or c.get("jobStatus") or ""),
+            "skills_known_display": sk_display,
+            "skills_known_norm": sk_norm,
+            "skills_unknown_norm": sk_unk,
+            "skills_from_experience_known_display": exp_display,
+            "skills_from_experience_known_norm": exp_norm,
+            "skills_from_experience_unknown_norm": exp_unk,
+            "primary_skills_known_display": pri_display,
+            "primary_skills_known_norm": pri_norm,
+            "primary_skills_unknown_norm": pri_unk,
+            "total_skill_count": len(sk_norm),
+            "primary_skill_count": len(pri_norm),
+            "years_exp": y_exp,
+            "seniority_hint": _sen(y_exp),
+            "source_updated_at": c.get("updated_at") or c.get("updatedAt") or c.get("created_at") or now_utc(),
+        }
+
+    def build_profile_context_text(self, c: dict, facts: Dict[str, Any]) -> str:
+        parts = [f"FACTS SUMMARY:\n- City: {facts.get('city')}\n- Years Experience: {facts.get('years_exp')}\n- Seniority: {facts.get('seniority_hint')}\n- Job Status: {facts.get('job_status')}\n- Primary Skills: {', '.join(facts.get('primary_skills_known_display') or [])}\n- Skills (Experience): {', '.join(facts.get('skills_from_experience_known_display') or [])}"]
+        bio = clean_text(c.get("bio"))
+        if bio: parts.append("BIO:\n" + bio[:1500])
+        for e in (c.get("experience") or []):
+            if not isinstance(e, dict): continue
+            line = f"{clean_text(e.get('position'))} at {clean_text(e.get('company_name') or e.get('companyName'))}".strip()
+            techs = e.get("technologies") or []
+            if techs: line += " | Tech: " + ", ".join([clean_text(t) for t in techs if clean_text(t)])
+            desc = clean_text(e.get("description"))
+            if desc: line += " | " + desc[:900]
+            parts.append(line)
+        return "\n".join([p for p in parts if p])
+
+    def index_candidate(self, c: dict) -> int:
+        cid = _to_oid(c.get("_id"))
+        if not cid: return 0
+        facts = self.extract_candidate_facts(c)
+        self.delete_candidate_chunks(cid) # clean old
+        text = self.build_profile_context_text(c, facts)
+        chunks = chunk_words(text, 220, 40) or ["Candidate profile (empty)"]
+        embs = self._get_embedder().encode(chunks, normalize_embeddings=True)
+        docs = []
+        for idx, (t, emb) in enumerate(zip(chunks, embs)):
+            docs.append({
+                "_id": f"candidate_profile::{cid}::{idx}",
+                "text": t,
+                "embedding": emb.tolist(),
+                "metadata": {"doc_type": "candidate_profile", "candidate_id": cid, "source_id": cid, "chunk_index": idx, **facts},
+                "created_at": now_utc(),
+            })
+        if docs: self.rag_col.insert_many(docs)
+        return len(docs)
+
+    def delete_candidate_chunks(self, candidate_id: Any) -> int:
+        cid = _to_oid(candidate_id)
+        if not cid: return 0
+        res = self.rag_col.delete_many({"metadata.doc_type": "candidate_profile", "metadata.candidate_id": cid})
+        return res.deleted_count

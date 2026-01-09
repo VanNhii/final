@@ -15,7 +15,13 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.facts_layer import SkillNormalizer, chunk_words, now_utc, clean_text  # noqa: E402
+from src.facts_layer import (  # noqa: E402
+    SkillNormalizer,
+    chunk_words,
+    now_utc,
+    clean_text,
+    normalize_city,
+)
 
 load_dotenv()
 
@@ -56,6 +62,14 @@ def pick_updated_at(c: dict) -> Any:
 
 def _doc_id(candidate_id: ObjectId, idx: int) -> str:
     return f"{DOC_TYPE}::{str(candidate_id)}::{idx}"
+
+
+def delete_candidate_chunks(candidate_id: ObjectId) -> int:
+    """Remove all RAG chunks for a specific candidate."""
+    res = rag_col.delete_many({"metadata.doc_type": DOC_TYPE, "metadata.candidate_id": candidate_id})
+    if res.deleted_count > 0:
+        print(f"🧹 Deleted chunks for candidate {candidate_id}: {res.deleted_count}")
+    return res.deleted_count
 
 
 def _need_index(candidate_id: ObjectId, src_upd: Any) -> bool:
@@ -168,6 +182,7 @@ def extract_candidate_facts(c: dict) -> Dict[str, Any]:
         "years_exp": years_exp,
         "seniority_hint": infer_seniority(years_exp),
         "city": city,
+        "city_norm": normalize_city(city),
         "education_level": edu,
         "job_status": status,
 
@@ -266,17 +281,20 @@ def index_one_candidate(c: dict) -> int:
 def sync_candidates(*, limit: Optional[int] = None, candidate_id: Optional[str] = None) -> None:
     print("\n=== SYNC CANDIDATES -> rag_chunks START (V3) ===")
 
-    q: Dict[str, Any] = {}
     if candidate_id:
-        try:
-            q["_id"] = ObjectId(candidate_id)
-        except Exception:
-            raise RuntimeError("candidate_id is not a valid ObjectId")
+        c_oid = ObjectId(candidate_id)
+        cand = candidates_col.find_one({"_id": c_oid})
+        if not cand:
+            delete_candidate_chunks(c_oid)
+            print(f"Candidate {candidate_id} not found in source, removed from RAG.")
+            return
+        n = index_one_candidate(cand)
+        print(f"Candidate {candidate_id} synced: {n} chunks.")
+        return
 
     count = 0
     upserted_chunks = 0
-
-    for c in candidates_col.find(q):
+    for c in candidates_col.find({}):
         if limit and count >= limit:
             break
         n = index_one_candidate(c)

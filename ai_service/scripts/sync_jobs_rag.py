@@ -16,7 +16,14 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.facts_layer import SkillNormalizer, chunk_words, now_utc, clean_text  # noqa: E402
+from src.facts_layer import (  # noqa: E402
+    SkillNormalizer,
+    chunk_words,
+    now_utc,
+    clean_text,
+    normalize_city,
+    normalize_work_location,
+)
 
 load_dotenv()
 
@@ -62,7 +69,7 @@ def job_is_valid(job: dict) -> bool:
         return False
     if job.get("is_active") is not True:
         return False
-    if job.get("status") != "approved":
+    if job.get("status") not in ("approved", "active", "open", "published"):
         return False
 
     deadline = job.get("application_deadline")
@@ -180,7 +187,10 @@ def extract_job_facts(j: dict) -> Dict[str, Any]:
         "job_seniority_level": clean_text(j.get("seniority_level")),
 
         "job_location_city": city,
+        "job_location_city_norm": normalize_city(city),
         "job_location_country": country,
+
+        "job_work_location_norm": normalize_work_location(clean_text(j.get("work_location"))),
 
         "job_required_skills_known_display": req_known_display,
         "job_required_skills_known_norm": req_known_norm,
@@ -228,6 +238,14 @@ def _doc_id(job_id: ObjectId, idx: int) -> str:
     return f"{DOC_TYPE}::{str(job_id)}::{idx}"
 
 
+def delete_job_chunks(job_id: ObjectId) -> int:
+    """Remove all RAG chunks for a specific job."""
+    res = rag_col.delete_many({"metadata.doc_type": DOC_TYPE, "metadata.job_id": job_id})
+    if res.deleted_count > 0:
+        print(f"🧹 Deleted chunks for job {job_id}: {res.deleted_count}")
+    return res.deleted_count
+
+
 def _need_index(job_id: ObjectId, src_upd: Any) -> bool:
     one = rag_col.find_one(
         {"metadata.doc_type": DOC_TYPE, "metadata.job_id": job_id},
@@ -244,6 +262,7 @@ def index_one_job(job: dict) -> int:
     if not isinstance(job_id, ObjectId):
         return 0
     if not job_is_valid(job):
+        delete_job_chunks(job_id)
         return 0
 
     facts = extract_job_facts(job)
@@ -288,12 +307,20 @@ def index_one_job(job: dict) -> int:
 def sync_jobs(*, limit: Optional[int] = None, job_id: Optional[str] = None) -> None:
     print("\n=== SYNC JOBS -> rag_chunks START (V3) ===")
 
-    q: Dict[str, Any] = {"is_active": True, "status": "approved"}
     if job_id:
-        try:
-            q["_id"] = ObjectId(job_id)
-        except Exception:
-            raise RuntimeError("job_id is not a valid ObjectId")
+        j_oid = ObjectId(job_id)
+        job = jobs_col.find_one({"_id": j_oid})
+        if not job:
+            delete_job_chunks(j_oid)
+            print(f"Job {job_id} not found in source, removed from RAG.")
+            return
+
+        n = index_one_job(job)
+        if n == 0 and not job_is_valid(job):
+             print(f"Job {job_id} is invalid (inactive/status), removed from RAG if existed.")
+        else:
+             print(f"Job {job_id} synced: {n} chunks.")
+        return
 
     count = 0
     upserted_chunks = 0
@@ -313,7 +340,7 @@ def sync_jobs(*, limit: Optional[int] = None, job_id: Optional[str] = None) -> N
     if not job_id and INDEX_MODE == "full":
         indexed_job_ids = rag_col.distinct("metadata.job_id", {"metadata.doc_type": DOC_TYPE})
         indexed_job_ids = [x for x in indexed_job_ids if isinstance(x, ObjectId)]
-        valid_ids = set(jobs_col.distinct("_id", {"is_active": True, "status": "approved"}))
+        valid_ids = set(jobs_col.distinct("_id", {"is_active": True, "status": {"$in": ["approved", "active", "open", "published"]}}))
         invalid_ids = [jid for jid in indexed_job_ids if jid not in valid_ids]
         if invalid_ids:
             res = rag_col.delete_many({"metadata.doc_type": DOC_TYPE, "metadata.job_id": {"$in": invalid_ids}})

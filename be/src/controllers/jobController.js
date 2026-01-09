@@ -2,6 +2,7 @@ const Job = require('../models/Job');
 const Recruiter = require('../models/Recruiter');
 const { getPaginationParams, buildPaginationResponse, applyPagination, getSearchParams } = require('../utils/pagination');
 const { incrementFeaturedJob } = require('../middleware/subscription');
+const { syncJobToAI } = require('../utils/aiSync');
 
 // @desc    Get all jobs
 // @route   GET /api/v1/jobs
@@ -146,6 +147,9 @@ exports.createJob = async (req, res, next) => {
       data: job,
       subscriptionInfo: req.jobStats // Added from middleware
     });
+
+    // Start RAG Sync (async)
+    syncJobToAI(job._id.toString());
   } catch (error) {
     next(error);
   }
@@ -196,6 +200,9 @@ exports.updateJob = async (req, res, next) => {
       success: true,
       data: job
     });
+
+    // Start RAG Sync (async)
+    syncJobToAI(job._id.toString());
   } catch (error) {
     next(error);
   }
@@ -232,6 +239,9 @@ exports.deleteJob = async (req, res, next) => {
       success: true,
       data: {}
     });
+
+    // Start RAG Sync (async - will handle deletion in RAG because job ID is missing in DB)
+    syncJobToAI(job._id.toString());
   } catch (error) {
     next(error);
   }

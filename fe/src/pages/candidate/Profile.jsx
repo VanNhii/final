@@ -1,11 +1,13 @@
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import candidateService from '@/services/candidateService';
 import uploadService from '@/services/uploadService';
+import { updateUserData } from '@/store/slices/authSlice';
 import { useEffect, useRef, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 
 const CandidateProfile = () => {
+  const dispatch = useDispatch();
   const [activeTab, setActiveTab] = useState('personal');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -100,6 +102,10 @@ const CandidateProfile = () => {
             avatar_url: avatarUrl
           }
         }));
+        
+        // Update global Redux state to reflect in header immediately
+        dispatch(updateUserData({ avatar_url: avatarUrl }));
+        
         toast.success('Cập nhật ảnh đại diện thành công!');
       } else {
         throw new Error(response.message || 'Upload ảnh thất bại');
@@ -993,7 +999,7 @@ const CandidateProfile = () => {
 
       {/* Experience Modal */}
       {showExperienceModal && editingExperience && (
-        <div className="fixed inset-0 bg-white/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">
@@ -1115,7 +1121,7 @@ const CandidateProfile = () => {
 
       {/* Education Modal */}
       {showEducationModal && editingEducation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">
@@ -1251,7 +1257,7 @@ const CandidateProfile = () => {
 
       {/* Skill Modal */}
       {showSkillModal && editingSkill && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-lg w-full">
             <div className="p-6">
               <h3 className="text-xl font-bold text-gray-900 mb-4">

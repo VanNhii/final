@@ -1,7 +1,7 @@
 const axios = require('axios');
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
-const AI_SERVICE_TIMEOUT = parseInt(process.env.AI_SERVICE_TIMEOUT) || 30000;
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:5000';
+const AI_SERVICE_TIMEOUT = parseInt(process.env.AI_SERVICE_TIMEOUT) || 180000;
 
 const aiChatClient = axios.create({
   baseURL: AI_SERVICE_URL,

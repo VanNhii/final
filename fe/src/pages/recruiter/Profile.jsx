@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { updateUserData } from '@/store/slices/authSlice';
+import { useEffect, useRef, useState } from 'react';
 import {
     FaBuilding,
     FaCamera,
@@ -16,11 +17,15 @@ import {
     FaTwitter,
     FaUser
 } from 'react-icons/fa';
+import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
 import recruiterService from '../../services/recruiterService';
+import uploadService from '../../services/uploadService';
 import { formatDate } from '../../utils/formatters';
 
 const RecruiterProfile = () => {
+  const dispatch = useDispatch();
+  const fileInputRef = useRef(null);
   const [activeTab, setActiveTab] = useState('company');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -128,6 +133,50 @@ const RecruiterProfile = () => {
   useEffect(() => {
     loadProfile();
   }, []);
+
+  const handleLogoChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast.error('Chỉ chấp nhận file ảnh (JPEG, PNG, GIF, WebP)');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Kích thước ảnh không được vượt quá 5MB');
+      return;
+    }
+
+    try {
+      const response = await uploadService.uploadAvatar(file); // Reuse avatar upload endpoint
+      
+      if (response.success && response.data) {
+        const logoUrl = response.data.file_url;
+        
+        // Update local state
+        setCompanyInfo(prev => ({ ...prev, logo_url: logoUrl }));
+        
+        // Update backend
+        // We update logo_url. We also update avatar_url of the user account so Header sees it.
+        await recruiterService.updateProfile({ 
+            logo_url: logoUrl,
+            avatar_url: logoUrl // Sync logo to user avatar
+        });
+        
+        // Update Redux
+        dispatch(updateUserData({ avatar_url: logoUrl }));
+        
+        toast.success('Cập nhật logo thành công!');
+      }
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast.error('Không thể tải ảnh lên');
+    } finally {
+       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const loadProfile = async () => {
     try {
@@ -418,8 +467,18 @@ const RecruiterProfile = () => {
                       <FaBuilding className="w-8 h-8 text-gray-400" />
                     </div>
                   )}
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleLogoChange}
+                    className="hidden"
+                    accept="image/*"
+                  />
                   {editMode && (
-                    <button className="absolute bottom-0 right-0 bg-green-600 rounded-full p-1.5 text-white hover:bg-green-700 transition-colors">
+                    <button
+                      onClick={() => fileInputRef.current.click()}
+                      className="absolute bottom-0 right-0 bg-green-600 rounded-full p-1.5 text-white hover:bg-green-700 transition-colors"
+                    >
                       <FaCamera className="w-3 h-3" />
                     </button>
                   )}
