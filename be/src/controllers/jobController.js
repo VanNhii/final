@@ -16,9 +16,6 @@ exports.getJobs = async (req, res, next) => {
     const query = { is_active: true, status: 'approved', ...searchFilters };
 
     // Additional filters
-    if (req.query.category) {
-      query.categories = req.query.category;
-    }
 
     if (req.query.job_type) {
       query.job_type = req.query.job_type;

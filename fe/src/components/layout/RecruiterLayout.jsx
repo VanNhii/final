@@ -362,8 +362,20 @@ const Header = ({
 
             {/* User menu */}
             <div className="relative flex items-center space-x-3 pl-3 border-l border-gray-200">
-              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-700 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
-                {user?.full_name?.charAt(0)?.toUpperCase() || user?.username?.charAt(0)?.toUpperCase() || "R"}
+              <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-green-700 rounded-full flex items-center justify-center text-white font-semibold shadow-md overflow-hidden">
+                {user?.avatar_url || user?.avatar ? (
+                  <img
+                    src={
+                      (user.avatar_url || user.avatar).startsWith('http')
+                        ? `${user.avatar_url || user.avatar}${((user.avatar_url || user.avatar).includes('?') ? '&' : '?')}t=${Date.now()}`
+                        : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${user.avatar_url || user.avatar}${((user.avatar_url || user.avatar).includes('?') ? '&' : '?')}t=${Date.now()}`
+                    }
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  user?.full_name?.charAt(0)?.toUpperCase() || user?.username?.charAt(0)?.toUpperCase() || "R"
+                )}
               </div>
               <div className="hidden sm:block">
                 <div className="text-sm font-medium text-gray-900 truncate max-w-[120px]">

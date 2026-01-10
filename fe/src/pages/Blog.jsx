@@ -3,14 +3,14 @@ import contentService from '@/services/contentService';
 import { useEffect, useState } from 'react';
 import { BsJournalText } from 'react-icons/bs';
 import {
-    FiArrowRight,
-    FiBookOpen,
-    FiChevronLeft,
-    FiChevronRight,
-    FiClock,
-    FiFileText,
-    FiFilter,
-    FiSearch
+  FiArrowRight,
+  FiBookOpen,
+  FiChevronLeft,
+  FiChevronRight,
+  FiClock,
+  FiFileText,
+  FiFilter,
+  FiSearch
 } from 'react-icons/fi';
 import { MdSort } from 'react-icons/md';
 import { Link, useSearchParams } from 'react-router';
@@ -26,14 +26,14 @@ const Blog = () => {
     total: 0,
     totalPages: 0
   });
-  
+
   // Filters
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
     category: searchParams.get('category') || '',
     sort: searchParams.get('sort') || '-published_at'
   });
-  
+
   const [loading, setLoading] = useState(false);
 
   // Fetch blog posts
@@ -43,20 +43,20 @@ const Blog = () => {
       const params = {
         page,
         limit: pagination.limit,
-        content_type: 'blog',
+        content_type: 'blog_post',
         ...filters
       };
-      
+
       // Remove empty filters
       Object.keys(params).forEach(key => {
         if (!params[key]) delete params[key];
       });
 
       const response = await contentService.getAllContent(params);
-      
+
       if (response.success) {
         setPosts(response.data.data || response.data || []);
-        
+
         // Safely access pagination data with fallbacks
         const paginationData = response.data.pagination || {};
         setPagination({
@@ -88,7 +88,7 @@ const Blog = () => {
         content_type: 'blog',
         limit: 3
       });
-      
+
       if (response.success) {
         setFeaturedPosts(response.data.data || []);
       }
@@ -119,7 +119,7 @@ const Blog = () => {
   // Refetch when filters change
   useEffect(() => {
     fetchPosts(1);
-    
+
     // Update URL params
     const newParams = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
@@ -248,7 +248,7 @@ const Blog = () => {
                 <FiFilter className="w-5 h-5 mr-2 text-blue-600" />
                 Bộ lọc
               </h3>
-              
+
               {/* Search */}
               <div className="mb-6">
                 <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
@@ -408,7 +408,7 @@ const Blog = () => {
                         <FiChevronLeft className="w-4 h-4 mr-1" />
                         Trước
                       </button>
-                      
+
                       {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                         let pageNum;
                         if (pagination.totalPages <= 5) {
@@ -420,22 +420,21 @@ const Blog = () => {
                         } else {
                           pageNum = pagination.page - 2 + i;
                         }
-                        
+
                         return (
                           <button
                             key={pageNum}
                             onClick={() => handlePageChange(pageNum)}
-                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                              pageNum === pagination.page
+                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${pageNum === pagination.page
                                 ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                                 : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-                            }`}
+                              }`}
                           >
                             {pageNum}
                           </button>
                         );
                       })}
-                      
+
                       <button
                         onClick={() => handlePageChange(pagination.page + 1)}
                         disabled={pagination.page === pagination.totalPages}

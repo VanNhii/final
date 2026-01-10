@@ -33,10 +33,9 @@ const Header = () => {
   };
 
   const navLinkClass = ({ isActive }) =>
-    `px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-      isActive
-        ? "text-primary-600 bg-primary-50 shadow-sm ring-1 ring-primary-200"
-        : "text-gray-700 hover:text-primary-600 hover:bg-gray-50 hover:shadow-sm"
+    `px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
+      ? "text-primary-600 bg-primary-50 shadow-sm ring-1 ring-primary-200"
+      : "text-gray-700 hover:text-primary-600 hover:bg-gray-50 hover:shadow-sm"
     }`;
 
   return (
@@ -79,9 +78,13 @@ const Header = () => {
                   onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
                   className="flex items-center space-x-2 text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
                 >
-                  {(user?.avatar_url || user?.avatar) && !imgError ? (
+                  {((user?.avatar_url || user?.avatar) && !imgError) ? (
                     <img
-                      src={user.avatar_url || user.avatar}
+                      src={
+                        (user.avatar_url || user.avatar).startsWith('http')
+                          ? `${user.avatar_url || user.avatar}${((user.avatar_url || user.avatar).includes('?') ? '&' : '?')}t=${Date.now()}`
+                          : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${user.avatar_url || user.avatar}${((user.avatar_url || user.avatar).includes('?') ? '&' : '?')}t=${Date.now()}`
+                      }
                       alt={user.name}
                       className="w-8 h-8 rounded-full object-cover border border-gray-200"
                       onError={() => setImgError(true)}

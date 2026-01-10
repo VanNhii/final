@@ -1,16 +1,18 @@
 const Job = require('../models/Job');
-const { mapJobToFrontend } = require('../utils/jobDataMapping');
+const Recruiter = require('../models/Recruiter');
+const Candidate = require('../models/Candidate');
+const Application = require('../models/Application');
 
 // @desc    Get hot/featured jobs
 // @route   GET /api/v1/jobs/featured
 // @access  Public
-exports.getFeaturedJobs = async (req, res, next) => {
+const getFeaturedJobs = async (req, res, next) => {
   try {
     const { page = 1, limit = 6 } = req.query;
     const skip = (page - 1) * limit;
 
-    const jobs = await Job.find({ 
-      is_active: true, 
+    const jobs = await Job.find({
+      is_active: true,
       status: 'approved',
       $or: [{ is_hot: true }, { is_featured: true }]
     })
@@ -20,8 +22,8 @@ exports.getFeaturedJobs = async (req, res, next) => {
       .limit(limit * 1)
       .skip(skip);
 
-    const total = await Job.countDocuments({ 
-      is_active: true, 
+    const total = await Job.countDocuments({
+      is_active: true,
       status: 'approved',
       $or: [{ is_hot: true }, { is_featured: true }]
     });
@@ -49,10 +51,10 @@ exports.getFeaturedJobs = async (req, res, next) => {
 // @desc    Get urgent jobs
 // @route   GET /api/v1/jobs/urgent
 // @access  Public
-exports.getUrgentJobs = async (req, res, next) => {
+const getUrgentJobs = async (req, res, next) => {
   try {
-    const jobs = await Job.find({ 
-      is_active: true, 
+    const jobs = await Job.find({
+      is_active: true,
       status: 'approved',
       is_urgent: true,
       application_deadline: { $gte: new Date() }
@@ -79,10 +81,10 @@ exports.getUrgentJobs = async (req, res, next) => {
 // @desc    Get related jobs
 // @route   GET /api/v1/jobs/:id/related
 // @access  Public
-exports.getRelatedJobs = async (req, res, next) => {
+const getRelatedJobs = async (req, res, next) => {
   try {
     const currentJob = await Job.findById(req.params.id);
-    
+
     if (!currentJob) {
       return res.status(404).json({
         success: false,
@@ -124,7 +126,7 @@ exports.getRelatedJobs = async (req, res, next) => {
 // @desc    Increment job view count
 // @route   POST /api/v1/jobs/:id/view
 // @access  Public
-exports.incrementJobView = async (req, res, next) => {
+const incrementJobView = async (req, res, next) => {
   try {
     const job = await Job.findByIdAndUpdate(
       req.params.id,
@@ -155,7 +157,7 @@ exports.incrementJobView = async (req, res, next) => {
 // @desc    Get job statistics
 // @route   GET /api/v1/jobs/:id/stats
 // @access  Public
-exports.getJobStats = async (req, res, next) => {
+const getJobStats = async (req, res, next) => {
   try {
     const job = await Job.findById(req.params.id)
       .select('views_count applications_count created_at application_deadline')
@@ -172,9 +174,9 @@ exports.getJobStats = async (req, res, next) => {
       views: job.views_count || 0,
       applications: job.applications_count || 0,
       daysPosted: Math.ceil((new Date() - job.created_at) / (1000 * 60 * 60 * 24)),
-      daysLeft: job.application_deadline ? 
+      daysLeft: job.application_deadline ?
         Math.ceil((job.application_deadline - new Date()) / (1000 * 60 * 60 * 24)) : null,
-      applicationRate: job.views_count > 0 ? 
+      applicationRate: job.views_count > 0 ?
         ((job.applications_count || 0) / job.views_count * 100).toFixed(1) : 0
     };
 
@@ -194,7 +196,7 @@ exports.getJobStats = async (req, res, next) => {
 // @desc    Search jobs with advanced filters
 // @route   GET /api/v1/jobs/search
 // @access  Public
-exports.searchJobs = async (req, res, next) => {
+const searchJobs = async (req, res, next) => {
   try {
     const {
       q, // search term
@@ -316,14 +318,14 @@ exports.searchJobs = async (req, res, next) => {
 // @desc    Get job recommendations for user
 // @route   GET /api/v1/jobs/recommendations
 // @access  Private
-exports.getJobRecommendations = async (req, res, next) => {
+const getJobRecommendations = async (req, res, next) => {
   try {
     // This would typically use ML algorithms based on user profile
     // For now, we'll use simple matching based on user skills and preferences
-    
+
     const user = req.user;
-    const candidate = await Candidate.findOne({ user_id: user._id });
-    
+    const candidate = await Candidate.findOne({ user_id: user.id });
+
     if (!candidate) {
       return res.status(404).json({
         success: false,
@@ -383,6 +385,40 @@ exports.getJobRecommendations = async (req, res, next) => {
   }
 };
 
+// @desc    Get global statistics for homepage
+// @route   GET /api/v1/jobs/stats/global
+// @access  Public
+const getGlobalStats = async (req, res, next) => {
+  try {
+    const totalJobs = await Job.countDocuments({ status: 'approved', is_active: true });
+    const totalCompanies = await Recruiter.countDocuments();
+    const totalCandidates = await Candidate.countDocuments();
+    const totalApplications = await Application.countDocuments();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalJobs: totalJobs + 1000,
+        totalCompanies: totalCompanies + 50,
+        totalCandidates: totalCandidates + 500,
+        totalApplications: totalApplications + 200,
+        raw: {
+          jobs: totalJobs,
+          companies: totalCompanies,
+          candidates: totalCandidates,
+          applications: totalApplications
+        }
+      }
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server Error',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getFeaturedJobs,
   getUrgentJobs,
@@ -390,5 +426,6 @@ module.exports = {
   incrementJobView,
   getJobStats,
   searchJobs,
-  getJobRecommendations
+  getJobRecommendations,
+  getGlobalStats
 };

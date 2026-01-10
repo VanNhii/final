@@ -32,20 +32,21 @@ const contentSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  
+
   // Content type determines the category options and behavior
   content_type: {
     type: String,
-    enum: ['blog_post', 'news_article', 'announcement'],
+    enum: ['blog_post', 'news_article', 'announcement', 'page'],
     required: [true, 'Please specify content type']
   },
-  
+
   // Dynamic category based on content type
   category: {
     type: String,
     required: [true, 'Please specify content category'],
     validate: {
-      validator: function(v) {
+      validator: function (v) {
+        if (this.content_type === 'page') return true;
         const validCategories = {
           blog_post: ['career_tips', 'industry_insights', 'company_spotlight', 'tech_trends', 'interview_tips', 'salary_guide', 'skill_development'],
           news_article: ['job_market', 'salary_trends', 'company_news', 'hiring_trends', 'tech_industry', 'policy_updates', 'event_announcements'],
@@ -56,24 +57,24 @@ const contentSchema = new mongoose.Schema({
       message: 'Invalid category for the specified content type'
     }
   },
-  
+
   tags: [{
     type: String,
     trim: true,
     lowercase: true
   }],
-  
+
   status: {
     type: String,
     enum: ['draft', 'published', 'archived'],
     default: 'draft'
   },
-  
+
   published_at: {
     type: Date,
     default: null
   },
-  
+
   // Feature flags
   is_featured: {
     type: Boolean,
@@ -87,7 +88,7 @@ const contentSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  
+
   // Analytics
   views_count: {
     type: Number,
@@ -97,7 +98,7 @@ const contentSchema = new mongoose.Schema({
     type: Number, // in minutes
     default: 1
   },
-  
+
   // News-specific fields (optional)
   source: {
     name: {
@@ -113,7 +114,7 @@ const contentSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
-  
+
   // SEO fields
   meta_title: {
     type: String,
@@ -125,13 +126,13 @@ const contentSchema = new mongoose.Schema({
     maxlength: [160, 'Meta description cannot be more than 160 characters'],
     trim: true
   },
-  
+
   // Scheduling
   scheduled_publish_at: {
     type: Date,
     default: null
   },
-  
+
   // Content settings
   allow_comments: {
     type: Boolean,
@@ -142,14 +143,14 @@ const contentSchema = new mongoose.Schema({
     default: false
   }
 }, {
-  timestamps: { 
-    createdAt: 'created_at', 
-    updatedAt: 'updated_at' 
+  timestamps: {
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   }
 });
 
 // Generate slug from title before saving
-contentSchema.pre('save', function(next) {
+contentSchema.pre('save', function (next) {
   if (this.isModified('title')) {
     this.slug = this.title
       .toLowerCase()
@@ -158,24 +159,24 @@ contentSchema.pre('save', function(next) {
       .replace(/-+/g, '-') // Replace multiple - with single -
       .trim('-'); // Remove - from start and end
   }
-  
+
   // Set published_at when status changes to published
   if (this.isModified('status') && this.status === 'published' && !this.published_at) {
     this.published_at = new Date();
   }
-  
+
   // Auto-calculate reading time based on content length
   if (this.isModified('content')) {
     const wordsPerMinute = 200; // Average reading speed
     const wordCount = this.content.split(/\s+/).length;
     this.reading_time = Math.max(1, Math.ceil(wordCount / wordsPerMinute));
   }
-  
+
   next();
 });
 
 // Populate author info when querying
-contentSchema.pre(/^find/, function(next) {
+contentSchema.pre(/^find/, function (next) {
   this.populate({
     path: 'author_id',
     select: 'full_name avatar_url'
@@ -184,7 +185,7 @@ contentSchema.pre(/^find/, function(next) {
 });
 
 // Virtual for content type display name
-contentSchema.virtual('content_type_display').get(function() {
+contentSchema.virtual('content_type_display').get(function () {
   const displayNames = {
     blog_post: 'Blog Post',
     news_article: 'News Article',

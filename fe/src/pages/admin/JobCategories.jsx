@@ -14,19 +14,28 @@ const JobCategories = () => {
     is_active: true
   });
   const [stats, setStats] = useState({});
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     fetchCategories();
     fetchCategoryStats();
-  }, []);
+  }, [page, limit]);
 
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      const response = await adminService.getJobCategories();
-      
+      const response = await adminService.getJobCategories({
+        page,
+        limit,
+        q: searchQuery
+      });
+
       if (response.success) {
         setCategories(response.data || []);
+        setTotalPages(response.pagination?.pages || 1);
       } else {
         throw new Error(response.message || 'Failed to fetch categories');
       }
@@ -64,7 +73,7 @@ const JobCategories = () => {
       try {
         setActionLoading(prev => ({ ...prev, [id]: true }));
         const response = await adminService.deleteJobCategory(id);
-        
+
         if (response.success) {
           setCategories(categories.filter((cat) => (cat._id || cat.id) !== id));
           toast.success('Xóa danh mục thành công');
@@ -85,7 +94,7 @@ const JobCategories = () => {
     try {
       setActionLoading(prev => ({ ...prev, [id]: true }));
       const response = await adminService.toggleJobCategoryStatus(id);
-      
+
       if (response.success) {
         setCategories(categories.map((cat) => {
           const catId = cat._id || cat.id;
@@ -105,7 +114,7 @@ const JobCategories = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.category_name.trim()) {
       toast.error('Vui lòng nhập tên danh mục');
       return;
@@ -114,13 +123,13 @@ const JobCategories = () => {
     try {
       setActionLoading(prev => ({ ...prev, submit: true }));
       let response;
-      
+
       // Prepare data with both fields for compatibility
       const submitData = {
         ...formData,
         name: formData.category_name, // Alias for backward compatibility
       };
-      
+
       if (editingCategory) {
         response = await adminService.updateJobCategory(editingCategory._id || editingCategory.id, submitData);
       } else {
@@ -202,18 +211,20 @@ const JobCategories = () => {
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <div className="text-2xl font-bold text-blue-600">{categories.length}</div>
+          <div className="text-2xl font-bold text-blue-600">
+            {stats.overview?.totalCategories || 0}
+          </div>
           <div className="text-sm text-gray-600">Tổng danh mục</div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="text-2xl font-bold text-green-600">
-            {categories.filter(c => c.is_active).length}
+            {stats.overview?.activeCategories || 0}
           </div>
           <div className="text-sm text-gray-600">Đang hoạt động</div>
         </div>
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <div className="text-2xl font-bold text-red-600">
-            {categories.filter(c => !c.is_active).length}
+            {stats.overview?.inactiveCategories || 0}
           </div>
           <div className="text-sm text-gray-600">Tạm dừng</div>
         </div>
@@ -226,10 +237,25 @@ const JobCategories = () => {
       </div>
 
       <div className="bg-white shadow rounded-lg">
-        <div className="px-6 py-4 border-b border-gray-200">
+        <div className="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between space-y-3 sm:space-y-0">
           <h3 className="text-lg font-medium text-gray-900">
-            Danh sách danh mục ({categories.length})
+            Danh sách danh mục ({stats.overview?.totalCategories || 0})
           </h3>
+          <div className="relative max-w-sm w-full">
+            <input
+              type="text"
+              placeholder="Tìm kiếm danh mục..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && (page === 1 ? fetchCategories() : setPage(1))}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -261,7 +287,7 @@ const JobCategories = () => {
                 categories.map((category) => {
                   const categoryId = getCategoryId(category);
                   const isActionLoading = actionLoading[categoryId];
-                  
+
                   return (
                     <tr key={categoryId} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -281,17 +307,16 @@ const JobCategories = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                            category.is_active
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          }`}
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${category.is_active
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
+                            }`}
                         >
                           {category.is_active ? "Hoạt động" : "Tạm dừng"}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {category.created_at 
+                        {category.created_at
                           ? new Date(category.created_at).toLocaleDateString('vi-VN')
                           : 'N/A'
                         }
@@ -313,11 +338,10 @@ const JobCategories = () => {
                           <button
                             onClick={() => toggleStatus(categoryId)}
                             disabled={isActionLoading}
-                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
-                              category.is_active 
-                                ? 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50' 
-                                : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
-                            }`}
+                            className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${category.is_active
+                              ? 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50'
+                              : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
+                              }`}
                             title={category.is_active ? 'Tạm dừng' : 'Kích hoạt'}
                           >
                             {isActionLoading ? (
@@ -368,6 +392,77 @@ const JobCategories = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+          <div className="flex-1 flex justify-between sm:hidden">
+            <button
+              onClick={() => setPage(p => Math.max(1, p - 1))}
+              disabled={page === 1}
+              className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              Trước
+            </button>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+              disabled={page === totalPages}
+              className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+            >
+              Sau
+            </button>
+          </div>
+          <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700">
+                Hiển thị trang <span className="font-medium">{page}</span> trên <span className="font-medium">{totalPages}</span>
+              </p>
+            </div>
+            <div>
+              <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <span className="sr-only">Previous</span>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {[...Array(totalPages)].map((_, i) => {
+                  if (totalPages > 7) {
+                    if (i + 1 > 2 && i + 1 < totalPages - 1 && Math.abs(i + 1 - page) > 1) {
+                      if (i + 1 === 3 || i + 1 === totalPages - 2) return <span key={i + 1} className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>;
+                      return null;
+                    }
+                  }
+                  return (
+                    <button
+                      key={i + 1}
+                      onClick={() => setPage(i + 1)}
+                      className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${page === i + 1
+                          ? "z-10 bg-blue-50 border-blue-500 text-blue-600"
+                          : "bg-white border-gray-300 text-gray-500 hover:bg-gray-50"
+                        }`}
+                    >
+                      {i + 1}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  <span className="sr-only">Next</span>
+                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Modal thêm/sửa danh mục */}
@@ -393,7 +488,7 @@ const JobCategories = () => {
                     required
                   />
                 </div>
-                
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Mô tả
@@ -439,8 +534,8 @@ const JobCategories = () => {
                     disabled={actionLoading.submit}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {actionLoading.submit 
-                      ? 'Đang xử lý...' 
+                    {actionLoading.submit
+                      ? 'Đang xử lý...'
                       : (editingCategory ? "Cập nhật" : "Thêm")
                     }
                   </button>

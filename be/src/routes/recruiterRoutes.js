@@ -17,15 +17,19 @@ const {
   upgradeSubscription,
   cancelSubscription,
   getRecruiterAnalytics,
-  debugSubscription
+  debugSubscription,
+  getPublicRecruiters
 } = require('../controllers/recruiterController');
 
- 
+
 const { protect, authorize } = require('../middleware/auth');
 const { checkCandidateSearchPermission, checkCVDownloadPermission } = require('../middleware/subscription');
 const { searchCandidates, getCandidateProfile, downloadCandidateCV } = require('../controllers/candidateSearchController.js');
-   
+
 const router = express.Router();
+
+// Public listing
+router.get('/public', getPublicRecruiters);
 
 // Recruiter-specific routes (for own data only) - must come before parameterized routes
 router.get('/profile', protect, authorize('recruiter'), getRecruiterProfile);
@@ -37,9 +41,9 @@ router.get('/dashboard', protect, authorize('recruiter'), getRecruiterDashboard)
 router.get('/notifications/unread-count', protect, authorize('recruiter'), async (req, res, next) => {
   try {
     const Notification = require('../models/Notification');
-    const count = await Notification.countDocuments({ 
-      user_id: req.user.id, 
-      is_read: false 
+    const count = await Notification.countDocuments({
+      user_id: req.user.id,
+      is_read: false
     });
     res.status(200).json({ success: true, count });
   } catch (error) {

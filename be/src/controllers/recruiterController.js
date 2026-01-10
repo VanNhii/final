@@ -32,6 +32,28 @@ exports.getRecruiters = async (req, res, next) => {
   }
 };
 
+// @desc    Get all recruiters (public)
+// @route   GET /api/v1/recruiters/public
+// @access  Public
+exports.getPublicRecruiters = async (req, res, next) => {
+  try {
+    const { page, limit, skip } = getPaginationParams(req);
+
+    const query = { is_verified: true };
+
+    const recruitersQuery = Recruiter.find(query)
+      .select('company_name logo_url industry company_size company_description')
+      .sort('-created_at');
+
+    const recruiters = await applyPagination(recruitersQuery, page, limit, skip);
+    const total = await Recruiter.countDocuments(query);
+
+    res.status(200).json(buildPaginationResponse(recruiters, total, page, limit));
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Get single recruiter
 // @route   GET /api/v1/recruiters/:id
 // @access  Public

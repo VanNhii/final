@@ -297,10 +297,14 @@ const Header = ({ onToggleSidebar, onMobileMenuToggle, isCollapsed, user, onLogo
   // Get full avatar URL
   const getAvatarUrl = (avatarPath) => {
     if (!avatarPath) return null;
-    // If already a full URL, return as is
-    if (avatarPath.startsWith('http')) return avatarPath;
-    // Convert relative path to full URL
-    return `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${avatarPath}`;
+    // If already a full URL, return as is (with cache bust)
+    if (avatarPath.startsWith('http')) {
+      const separator = avatarPath.includes('?') ? '&' : '?';
+      return `${avatarPath}${separator}t=${Date.now()}`;
+    }
+    // Convert relative path to full URL (with cache bust)
+    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    return `${baseUrl}${avatarPath}${(avatarPath.includes('?') ? '&' : '?')}t=${Date.now()}`;
   };
 
   return (

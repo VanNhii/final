@@ -47,13 +47,16 @@ const jobService = {
   },
 
   // Get job categories
-  getJobCategories: async () => {
-    return await apiClient.get('/job-categories');
+  getJobCategories: async (params = {}) => {
+    return await apiClient.get('/job-categories', {
+      include_jobs_count: true,
+      ...params
+    });
   },
 
-  // Get job statistics
-  getJobStats: async () => {
-    return await apiClient.get('/jobs/stats');
+  // Get global job statistics
+  getJobGlobalStats: async () => {
+    return await apiClient.get('/jobs/stats/global');
   },
 
   // Apply to job

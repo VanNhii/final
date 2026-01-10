@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { BsFacebook, BsLinkedin, BsTwitter } from 'react-icons/bs';
 import {
-    FiArrowLeft,
-    FiChevronRight,
-    FiClock,
-    FiEye,
-    FiMessageCircle,
-    FiShare2
+  FiArrowLeft,
+  FiChevronRight,
+  FiClock,
+  FiEye,
+  FiMessageCircle,
+  FiShare2
 } from 'react-icons/fi';
 import { MdCategory } from 'react-icons/md';
 import { Link, useParams } from 'react-router';
@@ -106,14 +106,35 @@ const BlogDetail = () => {
   ];
 
   useEffect(() => {
-    // TODO: Replace with actual API call
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setPost(mockPost);
-      setRelatedPosts(mockRelatedPosts);
-      setLoading(false);
-    }, 500);
+    const fetchPost = async () => {
+      try {
+        setLoading(true);
+        const response = await contentService.getContentById(slug);
+        if (response.success) {
+          setPost(response.data);
+
+          // Fetch related posts if needed
+          // For now, we can use the same type to get related posts
+          if (response.data.category) {
+            const relatedResponse = await contentService.getAllContent({
+              content_type: 'blog_post',
+              category: response.data.category,
+              limit: 2
+            });
+            if (relatedResponse.success) {
+              // Filter out current post
+              setRelatedPosts(relatedResponse.data.filter(p => p._id !== response.data._id));
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching blog post:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPost();
   }, [slug]);
 
   const formatDate = (dateString) => {
@@ -176,8 +197,8 @@ const BlogDetail = () => {
 
       <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Back Button */}
-        <Link 
-          to="/blog" 
+        <Link
+          to="/blog"
           className="inline-flex items-center text-blue-600 hover:text-blue-700 font-medium mb-6 group"
         >
           <FiArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
@@ -204,11 +225,11 @@ const BlogDetail = () => {
               {post.views_count.toLocaleString()} lượt xem
             </span>
           </div>
-          
+
           <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6 leading-tight">
             {post.title}
           </h1>
-          
+
           <div className="flex items-center mb-6">
             <img
               src={post.author_id.avatar_url || '/images/avatars/default.jpg'}
@@ -245,7 +266,7 @@ const BlogDetail = () => {
 
         {/* Article Content */}
         <div className="bg-white rounded-xl shadow-md p-8 mb-12 border border-gray-100">
-          <div 
+          <div
             className="prose prose-lg max-w-none prose-headings:text-gray-900 prose-p:text-gray-700 prose-a:text-blue-600 prose-strong:text-gray-900 prose-headings:font-bold"
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
@@ -292,7 +313,7 @@ const BlogDetail = () => {
                   </div>
                   <div className="p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-3 line-clamp-2">
-                      <Link 
+                      <Link
                         to={`/blog/${relatedPost.slug}`}
                         className="hover:text-blue-600 transition-colors"
                       >

@@ -1,6 +1,10 @@
 import apiClient from './apiClient';
 
 class RecruiterService {
+  async getPublicRecruiters(params = {}) {
+    return apiClient.get('/recruiters/public', params);
+  }
+
   // Profile Management
   async getProfile() {
     return apiClient.get('/recruiters/profile');

@@ -34,11 +34,11 @@ const Jobs = () => {
     total: 0,
     totalPages: 0
   });
-  
+
   // Filters
   const [searchInput, setSearchInput] = useState(searchParams.get('search') || '');
   const debouncedSearch = useDebounce(searchInput, 500); // 500ms delay
-  
+
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
     category: searchParams.get('category') || '',
@@ -48,7 +48,7 @@ const Jobs = () => {
     salary_max: searchParams.get('salary_max') || '',
     sort: searchParams.get('sort') || '-created_at'
   });
-  
+
   const [loading, setLoading] = useState(false);
 
   // Filter options
@@ -94,17 +94,17 @@ const Jobs = () => {
         limit: pagination.limit,
         ...filters
       };
-      
+
       // Remove empty filters
       Object.keys(params).forEach(key => {
         if (!params[key]) delete params[key];
       });
 
       const response = await jobService.getJobs(params);
-      
+
       if (response.success) {
         setJobs(response.data.data || response.data || []);
-        
+
         // Safely access pagination data with fallbacks
         const paginationData = response.data.pagination || {};
         setPagination({
@@ -132,7 +132,7 @@ const Jobs = () => {
   // Fetch categories
   const fetchCategories = async () => {
     try {
-      const response = await jobService.getJobCategories();
+      const response = await jobService.getJobCategories({ limit: 100 });
       if (response.success) {
         setCategories(response.data || []);
       }
@@ -171,7 +171,7 @@ const Jobs = () => {
 
     try {
       const isSaved = savedJobIds.has(jobId);
-      
+
       if (isSaved) {
         await candidateService.unsaveJob(jobId);
         setSavedJobIds(prev => {
@@ -211,7 +211,7 @@ const Jobs = () => {
   // Refetch when filters change
   useEffect(() => {
     fetchJobs(1);
-    
+
     // Update URL params
     const newParams = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
@@ -249,7 +249,7 @@ const Jobs = () => {
     const now = new Date();
     const diffTime = Math.abs(now - date);
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 1) return 'Hôm qua';
     if (diffDays < 7) return `${diffDays} ngày trước`;
     if (diffDays < 30) return `${Math.ceil(diffDays / 7)} tuần trước`;
@@ -291,7 +291,7 @@ const Jobs = () => {
                 <FiFilter className="w-5 h-5 text-blue-600" />
                 <h2 className="text-lg font-semibold text-gray-900">Bộ lọc</h2>
               </div>
-              
+
               {/* Search */}
               <div className="mb-6">
                 <label className="flex items-center text-sm font-medium text-gray-700 mb-2">
@@ -437,8 +437,8 @@ const Jobs = () => {
                             <div className="flex items-center mb-3">
                               <div className="w-14 h-14 bg-gradient-to-br from-blue-100 to-blue-50 rounded-xl flex items-center justify-center mr-4 shadow-sm">
                                 {job.recruiter_id?.company_logo_url ? (
-                                  <img 
-                                    src={job.recruiter_id.company_logo_url} 
+                                  <img
+                                    src={job.recruiter_id.company_logo_url}
                                     alt={job.recruiter_id.company_name}
                                     className="w-10 h-10 object-contain rounded"
                                   />
@@ -455,7 +455,7 @@ const Jobs = () => {
                                 <p className="text-gray-600 font-medium">{job.recruiter_id?.company_name}</p>
                               </div>
                             </div>
-                            
+
                             <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-4">
                               <span className="flex items-center bg-gray-50 px-3 py-1.5 rounded-lg">
                                 <FiMapPin className="w-4 h-4 mr-1.5 text-blue-600" />
@@ -477,7 +477,7 @@ const Jobs = () => {
 
                             {job.description && (
                               <p className="text-gray-600 text-sm line-clamp-2 mb-4 leading-relaxed">
-                                {job.description.length > 150 
+                                {job.description.length > 150
                                   ? job.description.substring(0, 150) + '...'
                                   : job.description
                                 }
@@ -514,16 +514,14 @@ const Jobs = () => {
                               {isAuthenticated && user?.role === 'candidate' && (
                                 <button
                                   onClick={() => toggleBookmark(job._id)}
-                                  className={`p-2.5 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg ${
-                                    savedJobIds.has(job._id)
+                                  className={`p-2.5 rounded-lg transition-all duration-300 shadow-md hover:shadow-lg ${savedJobIds.has(job._id)
                                       ? 'bg-red-500 text-white hover:bg-red-600'
                                       : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-300'
-                                  }`}
+                                    }`}
                                   title={savedJobIds.has(job._id) ? 'Bỏ lưu' : 'Lưu việc làm'}
                                 >
-                                  <FiHeart className={`w-5 h-5 ${
-                                    savedJobIds.has(job._id) ? 'fill-current' : ''
-                                  }`} />
+                                  <FiHeart className={`w-5 h-5 ${savedJobIds.has(job._id) ? 'fill-current' : ''
+                                    }`} />
                                 </button>
                               )}
                               <Link
@@ -564,7 +562,7 @@ const Jobs = () => {
                         <FiChevronLeft className="w-4 h-4 mr-1" />
                         Trước
                       </button>
-                      
+
                       {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                         let pageNum;
                         if (pagination.totalPages <= 5) {
@@ -576,22 +574,21 @@ const Jobs = () => {
                         } else {
                           pageNum = pagination.page - 2 + i;
                         }
-                        
+
                         return (
                           <button
                             key={pageNum}
                             onClick={() => handlePageChange(pageNum)}
-                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-                              pageNum === pagination.page
+                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${pageNum === pagination.page
                                 ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white shadow-md'
                                 : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
-                            }`}
+                              }`}
                           >
                             {pageNum}
                           </button>
                         );
                       })}
-                      
+
                       <button
                         onClick={() => handlePageChange(pagination.page + 1)}
                         disabled={pagination.page === pagination.totalPages}

@@ -102,10 +102,10 @@ const CandidateProfile = () => {
             avatar_url: avatarUrl
           }
         }));
-        
+
         // Update global Redux state to reflect in header immediately
         dispatch(updateUserData({ avatar_url: avatarUrl }));
-        
+
         toast.success('Cập nhật ảnh đại diện thành công!');
       } else {
         throw new Error(response.message || 'Upload ảnh thất bại');
@@ -417,8 +417,8 @@ const CandidateProfile = () => {
           <button
             onClick={() => setIsEditing(!isEditing)}
             className={`px-4 py-2 rounded-lg font-medium ${isEditing
-                ? 'bg-red-100 text-red-700 hover:bg-red-200'
-                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              ? 'bg-red-100 text-red-700 hover:bg-red-200'
+              : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
               }`}
           >
             {isEditing ? 'Hủy chỉnh sửa' : 'Chỉnh sửa hồ sơ'}
@@ -468,8 +468,8 @@ const CandidateProfile = () => {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={`py-4 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
               >
                 <span className="mr-2">{tab.icon}</span>
@@ -489,8 +489,8 @@ const CandidateProfile = () => {
                     {profile.user_id?.avatar_url ? (
                       <img
                         src={profile.user_id.avatar_url.startsWith('http')
-                          ? profile.user_id.avatar_url
-                          : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${profile.user_id.avatar_url}`
+                          ? `${profile.user_id.avatar_url}${profile.user_id.avatar_url.includes('?') ? '&' : '?'}t=${Date.now()}`
+                          : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${profile.user_id.avatar_url}${profile.user_id.avatar_url.includes('?') ? '&' : '?'}t=${Date.now()}`
                         }
                         alt="Avatar"
                         className="w-full h-full rounded-full object-cover"

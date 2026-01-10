@@ -1,21 +1,21 @@
 import { updateUserData } from '@/store/slices/authSlice';
 import { useEffect, useRef, useState } from 'react';
 import {
-    FaBuilding,
-    FaCamera,
-    FaEdit,
-    FaEnvelope,
-    FaFacebook,
-    FaGlobe,
-    FaLinkedin,
-    FaMapMarkerAlt,
-    FaPhone,
-    FaPlus,
-    FaSave,
-    FaTimes,
-    FaTrash,
-    FaTwitter,
-    FaUser
+  FaBuilding,
+  FaCamera,
+  FaEdit,
+  FaEnvelope,
+  FaFacebook,
+  FaGlobe,
+  FaLinkedin,
+  FaMapMarkerAlt,
+  FaPhone,
+  FaPlus,
+  FaSave,
+  FaTimes,
+  FaTrash,
+  FaTwitter,
+  FaUser
 } from 'react-icons/fa';
 import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -151,30 +151,30 @@ const RecruiterProfile = () => {
 
     try {
       const response = await uploadService.uploadAvatar(file); // Reuse avatar upload endpoint
-      
+
       if (response.success && response.data) {
         const logoUrl = response.data.file_url;
-        
+
         // Update local state
         setCompanyInfo(prev => ({ ...prev, logo_url: logoUrl }));
-        
+
         // Update backend
         // We update logo_url. We also update avatar_url of the user account so Header sees it.
-        await recruiterService.updateProfile({ 
-            logo_url: logoUrl,
-            avatar_url: logoUrl // Sync logo to user avatar
+        await recruiterService.updateProfile({
+          logo_url: logoUrl,
+          avatar_url: logoUrl // Sync logo to user avatar
         });
-        
+
         // Update Redux
         dispatch(updateUserData({ avatar_url: logoUrl }));
-        
+
         toast.success('Cập nhật logo thành công!');
       }
     } catch (error) {
       console.error('Error uploading logo:', error);
       toast.error('Không thể tải ảnh lên');
     } finally {
-       if (fileInputRef.current) fileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -183,9 +183,9 @@ const RecruiterProfile = () => {
       setLoading(true);
       const response = await recruiterService.getProfile();
       const profileData = response.data;
-      
+
       setProfile(profileData);
-      
+
       // Set company info
       setCompanyInfo({
         company_name: profileData.company_name || '',
@@ -234,7 +234,7 @@ const RecruiterProfile = () => {
   const handleSaveProfile = async () => {
     try {
       setSaving(true);
-      
+
       // Validate data before sending
       const validation = validateAndCleanData();
       if (!validation.isValid) {
@@ -274,9 +274,9 @@ const RecruiterProfile = () => {
           cleanedProfileData[key] = null;
         }
       });
-      
+
       console.log('Sending profile data:', cleanedProfileData); // Debug log
-      
+
       await recruiterService.updateProfile(cleanedProfileData);
       toast.success('Cập nhật hồ sơ thành công!');
       setEditMode(false);
@@ -351,7 +351,7 @@ const RecruiterProfile = () => {
   const updateLocation = (index, field, value) => {
     setCompanyInfo(prev => ({
       ...prev,
-      company_locations: prev.company_locations.map((location, i) => 
+      company_locations: prev.company_locations.map((location, i) =>
         i === index ? { ...location, [field]: value } : location
       )
     }));
@@ -438,9 +438,9 @@ const RecruiterProfile = () => {
           {/* Cover Image */}
           <div className="h-48 bg-gradient-to-r from-green-500 to-blue-600 relative">
             {companyInfo.cover_image_url && (
-              <img 
-                src={companyInfo.cover_image_url} 
-                alt="Cover" 
+              <img
+                src={companyInfo.cover_image_url}
+                alt="Cover"
                 className="w-full h-full object-cover"
               />
             )}
@@ -457,9 +457,13 @@ const RecruiterProfile = () => {
               <div className="relative -mt-16">
                 <div className="w-24 h-24 bg-white rounded-full p-1 shadow-lg">
                   {companyInfo.logo_url ? (
-                    <img 
-                      src={companyInfo.logo_url} 
-                      alt="Logo" 
+                    <img
+                      src={
+                        companyInfo.logo_url.startsWith('http')
+                          ? `${companyInfo.logo_url}${companyInfo.logo_url.includes('?') ? '&' : '?'}t=${Date.now()}`
+                          : `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}${companyInfo.logo_url}${companyInfo.logo_url.includes('?') ? '&' : '?'}t=${Date.now()}`
+                      }
+                      alt="Logo"
                       className="w-full h-full object-cover rounded-full"
                     />
                   ) : (
@@ -484,7 +488,7 @@ const RecruiterProfile = () => {
                   )}
                 </div>
               </div>
-              
+
               <div className="flex-1">
                 <h1 className="text-2xl font-bold text-gray-900">
                   {companyInfo.company_name || 'Chưa cập nhật tên công ty'}
@@ -494,7 +498,7 @@ const RecruiterProfile = () => {
                   Tham gia từ {formatDate(profile?.created_at)}
                 </p>
               </div>
-              
+
               <div className="flex space-x-2">
                 {!editMode ? (
                   <button
@@ -538,11 +542,10 @@ const RecruiterProfile = () => {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center space-x-2 py-4 px-6 border-b-2 font-medium text-sm transition-colors ${
-                      activeTab === tab.id
+                    className={`flex items-center space-x-2 py-4 px-6 border-b-2 font-medium text-sm transition-colors ${activeTab === tab.id
                         ? 'border-green-500 text-green-600'
                         : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
+                      }`}
                   >
                     <Icon className="w-4 h-4" />
                     <span>{tab.label}</span>
@@ -555,7 +558,7 @@ const RecruiterProfile = () => {
           {/* Tab Content */}
           <div className="p-6">
             {activeTab === 'company' && (
-              <CompanyInfoTab 
+              <CompanyInfoTab
                 companyInfo={companyInfo}
                 editMode={editMode}
                 onUpdate={handleCompanyUpdate}
@@ -564,7 +567,7 @@ const RecruiterProfile = () => {
                 onRemoveBenefit={removeBenefit}
               />
             )}
-            
+
             {activeTab === 'locations' && (
               <LocationsTab
                 locations={companyInfo.company_locations}
@@ -575,9 +578,9 @@ const RecruiterProfile = () => {
                 onSetHeadquarters={setHeadquarters}
               />
             )}
-            
+
             {activeTab === 'personal' && (
-              <PersonalInfoTab 
+              <PersonalInfoTab
                 personalInfo={personalInfo}
                 editMode={editMode}
                 onUpdate={handlePersonalUpdate}
@@ -598,13 +601,13 @@ const RecruiterProfile = () => {
 };
 
 // Company Information Tab Component
-const CompanyInfoTab = ({ 
-  companyInfo, 
-  editMode, 
-  onUpdate, 
-  onAddBenefit, 
-  onUpdateBenefit, 
-  onRemoveBenefit 
+const CompanyInfoTab = ({
+  companyInfo,
+  editMode,
+  onUpdate,
+  onAddBenefit,
+  onUpdateBenefit,
+  onRemoveBenefit
 }) => (
   <div className="space-y-6">
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -864,11 +867,11 @@ const CompanyInfoTab = ({
 );
 
 // Locations Tab Component
-const LocationsTab = ({ 
-  locations, 
-  editMode, 
-  onAddLocation, 
-  onUpdateLocation, 
+const LocationsTab = ({
+  locations,
+  editMode,
+  onAddLocation,
+  onUpdateLocation,
   onRemoveLocation,
   onSetHeadquarters
 }) => (
@@ -904,9 +907,8 @@ const LocationsTab = ({
         {locations.map((location, index) => (
           <div
             key={index}
-            className={`bg-white border-2 rounded-lg p-4 ${
-              location.is_headquarters ? 'border-green-500 bg-green-50' : 'border-gray-200'
-            }`}
+            className={`bg-white border-2 rounded-lg p-4 ${location.is_headquarters ? 'border-green-500 bg-green-50' : 'border-gray-200'
+              }`}
           >
             {location.is_headquarters && (
               <div className="flex items-center space-x-2 mb-3">
@@ -977,10 +979,10 @@ const LocationsTab = ({
 );
 
 // Personal Information Tab Component  
-const PersonalInfoTab = ({ 
-  personalInfo, 
-  editMode, 
-  onUpdate, 
+const PersonalInfoTab = ({
+  personalInfo,
+  editMode,
+  onUpdate,
   onSocialLinkUpdate,
   onAddSkill,
   onUpdateSkill,
